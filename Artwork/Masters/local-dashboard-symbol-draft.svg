@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+  <title id="title">Local Dashboard — four panels, draft</title>
+  <desc id="desc">Four equal panels centered within a rounded green dashboard tile.</desc>
+  <rect x="4" y="4" width="56" height="56" rx="12" fill="#9AD9C1"/>
+  <rect x="12" y="12" width="40" height="40" rx="5" fill="#162921"/>
+  <g fill="#9AD9C1">
+    <rect x="17" y="17" width="12" height="12" rx="2"/>
+    <rect x="35" y="17" width="12" height="12" rx="2"/>
+    <rect x="17" y="35" width="12" height="12" rx="2"/>
+    <rect x="35" y="35" width="12" height="12" rx="2"/>
+  </g>
+</svg>

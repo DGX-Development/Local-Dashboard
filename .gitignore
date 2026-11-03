@@ -1,0 +1,31 @@
+# Local configuration and user state
+/.local/
+/catalog.json
+/.env
+/.env.*
+*.user
+*.code-workspace
+*.lnk
+/launch-error.txt
+# Generated application and browser data
+*.exe
+*.pdb
+*.ico
+/dist/catalog-data.js
+/dist/icons/*.png
+# Machine-specific history, fixtures, reports and recovery material
+/.dev/Review/
+/.dev/previous-server/
+/.dev/Project Notes.md
+/.dev/Human Maintenance.md
+/.dev/Current Work Contract.md
+/.dev/Agent Status Contract.md
+/.dev/Tools/Test-*.cjs
+/.dev/Tools/Test-*.ps1
+/.dev/Tools/Publish-TaskStatus.ps1
+/.dev/Tools/Update-CurrentWork.ps1
+# Legacy launch and protocol installation files remain local
+/Install Bookmark Handler.ps1
+/Start Local Dashboard.cmd
+/Start Local Dashboard.vbs
+/native.test.cjs

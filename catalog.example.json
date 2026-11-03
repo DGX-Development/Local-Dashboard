@@ -1,0 +1,12 @@
+[
+  {
+    "id": "example-website",
+    "name": "Example website",
+    "section": "everyday",
+    "description": "Replace this example in your local catalog.",
+    "iconAsset": "local-dashboard.svg",
+    "targets": [
+      { "id": "website", "kind": "web", "url": "https://example.com", "label": "Website" }
+    ]
+  }
+]
