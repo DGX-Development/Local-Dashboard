@@ -26,6 +26,14 @@ For an existing configuration, first use **File > Back up configuration** in you
 
 A fresh install shows **Projects**, **Documents**, **Websites** and **All links**, with one generic example in each of the first three categories. Agent tasks and Personal tasks remain unselected until you choose files. Checklists starts empty inside the app's data folder. Existing profiles keep their catalog and saved labels.
 
+## Screenshots
+
+Local Dashboard 2.2.1 showing the same sample workspace in light and dark appearance.
+
+| Light appearance | Dark appearance |
+| --- | --- |
+| [![Local Dashboard in light appearance](Artwork/Exports/Web/local-dashboard-2.2.1-light-1280x860.png)](Artwork/Exports/Web/local-dashboard-2.2.1-light-1280x860.png) | [![Local Dashboard in dark appearance](Artwork/Exports/Web/local-dashboard-2.2.1-dark-1280x860.png)](Artwork/Exports/Web/local-dashboard-2.2.1-dark-1280x860.png) |
+
 ## What it does
 
 - Opens configured folders, documents and websites from a searchable dashboard.
