@@ -17,7 +17,7 @@ internal sealed class CatalogDraft
     {
         file=path;
         original=File.ReadAllText(path);
-        Entries=AppData.ReadEntries(original);
+        Entries=AppData.ReadEntries(original,Path.GetDirectoryName(file));
     }
 
     internal void Save()
@@ -32,7 +32,7 @@ internal sealed class CatalogDraft
             {
                 CheckOriginal();
                 var rows=AppData.Json.Deserialize<List<Dictionary<string,object>>>(original);
-                var baseline=AppData.ReadEntries(original);
+                var baseline=AppData.ReadEntries(original,Path.GetDirectoryName(file));
                 bool changed=false;
                 for(int i=0;i<Entries.Count;i++)
                     changed=ApplyEntry(rows[i],Entries[i],baseline[i])||changed;

@@ -4,12 +4,12 @@
 #ifndef OutputFolder
   #error Supply OutputFolder for the installer
 #endif
-#define AppVersion "2.2.0"
+#define AppVersion "2.2.1"
 [Setup]
 AppId={{8C259AD3-7B64-4C7E-9D9A-ECD1E5543B61}
 AppName=Local Dashboard
 AppVersion={#AppVersion}
-VersionInfoVersion=2.2.0.0
+VersionInfoVersion=2.2.1.0
 AppPublisher=DGX Development
 AppPublisherURL=https://dgx.digitalguy.me/
 AppSupportURL=https://dgx.digitalguy.me/contact.html
@@ -20,7 +20,7 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0.19045
 OutputDir={#OutputFolder}
-OutputBaseFilename=LocalDashboard-2.2.0-Setup
+OutputBaseFilename=LocalDashboard-2.2.1-Setup
 SetupIconFile={#PackageDir}\local-dashboard.ico
 UninstallDisplayIcon={app}\LocalDashboard.exe
 WizardStyle=modern
@@ -40,6 +40,8 @@ Source: "{#PackageDir}\catalog.json"; DestDir: "{app}"; Flags: onlyifdoesntexist
 Source: "{#PackageDir}\INSTALL.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PackageDir}\Fluent-LICENSE.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PackageDir}\Fluent-NOTICE.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#PackageDir}\Examples\Example document.txt"; DestDir: "{app}\Examples"; Flags: onlyifdoesntexist uninsneveruninstall
+Source: "{#PackageDir}\Examples\Example project\Read me.txt"; DestDir: "{app}\Examples\Example project"; Flags: onlyifdoesntexist uninsneveruninstall
 [Icons]
 Name: "{group}\Local Dashboard"; Filename: "{app}\LocalDashboard.exe"; WorkingDir: "{app}"
 Name: "{autodesktop}\Local Dashboard"; Filename: "{app}\LocalDashboard.exe"; WorkingDir: "{app}"; Tasks: desktopicon

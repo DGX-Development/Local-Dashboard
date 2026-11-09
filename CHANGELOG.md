@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.2.1 - 2026-11-09
+
+- Replaced personal-style sidebar defaults with Projects, Documents, Websites and All links.
+- Included a generic example folder, document and website; retained saved catalogs and custom category labels.
+- Removed automatic Desktop/Current Work.txt selection. New Agent tasks and Personal tasks selections start empty.
+- Updated all built-in Help topics and installation instructions for the actual first-run behavior.
+
 ## 2.2.0 - 2026-11-09
 
 - Added a per-user Windows installer, portable package and release checksums.

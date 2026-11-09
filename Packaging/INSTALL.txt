@@ -1,4 +1,4 @@
-LOCAL DASHBOARD 2.2.0
+LOCAL DASHBOARD 2.2.1
 
 Close any existing Local Dashboard using File > Exit before installing.
 
@@ -6,7 +6,11 @@ Setup installs for your Windows account, normally under:
 %LOCALAPPDATA%\Programs\Local Dashboard
 
 Open Local Dashboard from the Start menu. A desktop shortcut is optional.
-The setup walkthrough opens for a new profile. Help > Run setup again opens it later.
+A new profile starts with Projects, Documents, Websites and All links.
+The first three contain one clearly labeled example each. Edit replaces their
+names and destinations; Move renames or reorders categories. Agent tasks and
+Personal tasks start unselected. Checklists starts empty inside Dashboard.
+No personal lists or paths are included. The setup walkthrough opens for a new profile. Help > Run setup again opens it later.
 
 This download contains a starter catalog, not your personal files. To carry over
 an existing Dashboard configuration, first use File > Back up configuration in

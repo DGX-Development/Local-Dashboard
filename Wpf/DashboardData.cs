@@ -87,7 +87,7 @@ internal static partial class DashboardData {
         Directory.CreateDirectory(check);
         try{
             foreach(var item in files)if(item.Value!=null){string path=Path.Combine(check,Path.GetFileName(item.Key));File.WriteAllBytes(path,item.Value);}
-            var entries=AppData.ReadEntries(Text(files["catalog.json"]));
+            var entries=AppData.ReadEntries(Text(files["catalog.json"]),profile);
             if(entries.Count>1000||entries.Any(e=>e==null||String.IsNullOrWhiteSpace(e.id)||String.IsNullOrWhiteSpace(e.name)||e.targets==null||e.targets.Count>50))throw new IOException("Invalid catalog.");
             foreach(var entry in entries)foreach(var target in entry.targets){
                 if(target==null||String.IsNullOrWhiteSpace(target.id))throw new IOException("Invalid destination.");

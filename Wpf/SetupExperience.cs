@@ -1,11 +1,49 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Text;
 using System.Reflection;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 
 internal sealed partial class WpfDashboard {
+    void VerifyFirstRun(){
+        verifying=nonWindowedVerification=true;
+        try{
+            if(!layout.items.Select(i=>i.label).SequenceEqual(new[]{"Projects","Documents","Websites","All links"}))throw new Exception("Fresh sidebar is not generic.");
+            if(entries.Count!=3||new[]{"software","documents","everyday"}.Any(id=>entries.Count(e=>e.section==id)!=1))throw new Exception("Starter examples differ.");
+            foreach(var entry in entries)foreach(var target in entry.targets)AppData.Validate(target);
+            foreach(bool personal in new[]{false,true}){
+                bool unselected=false;try{WorkSources.Read(profile,personal);}catch(IOException){unselected=true;}
+                if(!unselected||WorkSources.Token(profile,personal)!=null)throw new Exception("Fresh task source was selected automatically.");
+            }
+            CaptureShell(profile,"first-run-dashboard.png",1120,820);
+            presentDialog=dialog=>{
+                var root=dialog.Content as DependencyObject;
+                Capture(dialog.Content as UIElement,Path.Combine(profile,"first-run-setup-1.png"),744,681);
+                ClickIn(root,"Next");Capture(dialog.Content as UIElement,Path.Combine(profile,"first-run-setup-2.png"),744,681);
+                foreach(string name in new[]{"Agent tasks list location","Personal tasks list location"})
+                    if(Visuals<TextBox>(root).Single(t=>System.Windows.Automation.AutomationProperties.GetName(t)==name).Text!="")throw new Exception("Setup prefilled a document source.");
+                if(Visuals<TextBox>(root).Single(t=>System.Windows.Automation.AutomationProperties.GetName(t)=="Checklist list location").Text!=Path.Combine(profile,".local","current-work.json"))throw new Exception("Checklist default differs.");
+                ClickIn(root,"Next");ClickIn(root,"Finish");dialog.Close();return true;
+            };
+            ShowSetup();
+            if(WorkSources.Token(profile)!=null||WorkSources.Token(profile,true)!=null||new ChecklistStore(ChecklistLocation.PathFor(profile),entries).Read().items.Count!=0)throw new Exception("Setup created document choices or checklist entries.");
+            string saved=Path.Combine(profile,"Preserved");Directory.CreateDirectory(Path.Combine(saved,".local"));
+            string oldPath=Path.Combine(saved,".local","sidebar-layout.json");
+            File.WriteAllText(oldPath,"{\"schemaVersion\":1,\"revision\":3,\"items\":[{\"id\":\"software\",\"label\":\"Software projects\"},{\"id\":\"media\",\"label\":\"My custom category\"}],\"orders\":{}}");
+            string original=File.ReadAllText(oldPath);var old=new SidebarStore(oldPath).Read();
+            if(old.Layout.items.First(i=>i.id=="software").label!="Software projects"||old.Layout.items.First(i=>i.id=="media").label!="My custom category"||File.ReadAllText(oldPath)!=original)throw new Exception("Saved category labels changed.");
+            foreach(bool personal in new[]{false,true}){
+                var choice=new WorkSourceChoice{schemaVersion=1,kind="local",path=Path.Combine(saved,personal?"personal.txt":"agent.txt")};
+                WorkSources.Save(saved,choice,null,personal);if(WorkSources.Read(saved,personal).path!=choice.path)throw new Exception("Saved document selection changed.");
+            }
+            string originalCatalog=File.ReadAllText(Path.Combine(profile,"catalog.json"));new CatalogDraft(Path.Combine(profile,"catalog.json")).Save();
+            if(File.ReadAllText(Path.Combine(profile,"catalog.json"))!=originalCatalog)throw new Exception("Viewing relative examples changed the catalog.");
+            if(DashboardHelp.Topics.Any(t=>t.Body.Contains("maintenance guide linked below")||t.Body.Contains("Desktop review uses")||t.Body.Contains("Software projects or Website projects")))throw new Exception("Stale Help remains.");
+            Console.WriteLine("First-run checks passed: generic categories and usable examples, blank document selections, empty local checklist, Setup Finish, saved labels/sources preserved, unchanged sample catalog, updated Help. Offscreen only.");
+        }finally{Exit();}
+    }
     internal static bool NeedsFirstSetup(string profile){return !Directory.Exists(Path.Combine(profile,".local"));}
     void RecordSetupVisit(){DashboardData.Atomic(StatePath("setup.json"),Encoding.UTF8.GetBytes("{\"schemaVersion\":1,\"visited\":true}"));}
     void ShowSetup(){ShowSetup(false);}
@@ -14,7 +52,7 @@ internal sealed partial class WpfDashboard {
         var root=new DockPanel{Margin=new Thickness(28)};var progress=WorkText("",true);DockPanel.SetDock(progress,Dock.Top);root.Children.Add(progress);
         var actions=new WrapPanel{HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,18,0,0)};DockPanel.SetDock(actions,Dock.Bottom);root.Children.Add(actions);
         var host=new ScrollViewer{VerticalScrollBarVisibility=ScrollBarVisibility.Auto};root.Children.Add(host);
-        var welcome=new StackPanel();welcome.Children.Add(new TextBlock{Text="Make Dashboard yours",FontSize=24,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,8,0,18)});welcome.Children.Add(WorkText("Dashboard brings your project links and three task sections together. You can skip setup and change these choices later in Settings."));welcome.Children.Add(WorkText("Agent tasks",true));welcome.Children.Add(WorkText("A saved text or Markdown list maintained by your agent. Dashboard reads it; it does not send instructions or change the original."));welcome.Children.Add(WorkText("Personal tasks",true));welcome.Children.Add(WorkText("Your separate text or Markdown document. Add or edit tasks in Dashboard, or use your usual editor. Save updates the selected file."));welcome.Children.Add(WorkText("Checklists",true));welcome.Children.Add(WorkText("The list you manage in Dashboard. Add, edit and check off tasks; changes save automatically. Its default location is inside your Dashboard data folder."));
+        var welcome=new StackPanel();welcome.Children.Add(new TextBlock{Text="Make Dashboard yours",FontSize=24,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,8,0,18)});welcome.Children.Add(WorkText("A new Dashboard starts with Projects, Documents, Websites and All links. Each of the first three contains one clearly labeled example. Use Edit below the sidebar to choose your own folder, document or website; use Move to rename or reorder categories. Existing profiles keep their saved links and labels. Dashboard also brings three task sections together. You can skip setup and change these choices later in Settings."));welcome.Children.Add(WorkText("Agent tasks",true));welcome.Children.Add(WorkText("A saved text or Markdown list maintained by your agent. Dashboard reads it; it does not send instructions or change the original."));welcome.Children.Add(WorkText("Personal tasks",true));welcome.Children.Add(WorkText("Your separate text or Markdown document. Add or edit tasks in Dashboard, or use your usual editor. Save updates the selected file."));welcome.Children.Add(WorkText("Checklists",true));welcome.Children.Add(WorkText("The list you manage in Dashboard. Add, edit and check off tasks; changes save automatically. Its default location is inside your Dashboard data folder. On a fresh installation, Agent tasks and Personal tasks are unselected until you choose files on the next page. You can leave them empty."));
         Action saveLists;var locations=BuildWorkSource(out saveLists);
         var finish=new StackPanel();finish.Children.Add(new TextBlock{Text="Know where the window goes",FontSize=24,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,8,0,18)});
         finish.Children.Add(WorkText("X button",true));finish.Children.Add(WorkText(preferenceStore.Value.closeToTray?"Currently, X hides Dashboard in the system tray near the Windows clock. It keeps running.":"Currently, X quits Dashboard."));

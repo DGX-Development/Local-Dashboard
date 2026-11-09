@@ -95,7 +95,7 @@ internal sealed partial class WpfDashboard
 
     void Reload()
     {
-        entries=AppData.ReadEntries(File.ReadAllText(Path.Combine(profile,"catalog.json")));
+        entries=AppData.ReadEntries(File.ReadAllText(Path.Combine(profile,"catalog.json")),profile);
         sidebarSnapshot=sidebarStore.Read();layout=sidebarSnapshot.Layout;
         RefreshNavigation();
         Render();
@@ -288,7 +288,7 @@ internal sealed partial class WpfDashboard
     static int Main(string[] args)
     {
         AppInstanceGate applicationGate=null;
-        bool diagnostic=args.Any(a=>a=="--verify-review-polish"||a=="--verify-task-lists"||a=="--verify-providers"||a=="--verify-review-links"||a=="--verify-sources"||a=="--verify-data"||a=="--verify-layout"||a=="--verify-icon-relaunch"||a=="--verify-fixture"||a=="--work-read"||a=="--work-apply");
+        bool diagnostic=args.Any(a=>a=="--verify-first-run"||a=="--verify-review-polish"||a=="--verify-task-lists"||a=="--verify-providers"||a=="--verify-review-links"||a=="--verify-sources"||a=="--verify-data"||a=="--verify-layout"||a=="--verify-icon-relaunch"||a=="--verify-fixture"||a=="--work-read"||a=="--work-apply");
         try
         {
             bool fixture=args.Length>=2&&(args[0]=="--fixture"||args[0]=="--verify-fixture");
@@ -314,7 +314,7 @@ internal sealed partial class WpfDashboard
                 throw new ArgumentException("Supply --fixture and an isolated profile under .dev/Review.");
 #endif
             }
-            var catalog=AppData.ReadEntries(File.ReadAllText(Path.Combine(profile,"catalog.json")));
+            var catalog=AppData.ReadEntries(File.ReadAllText(Path.Combine(profile,"catalog.json")),profile);
             string local=Path.Combine(profile,".local");
             var checklist=new ChecklistStore(ChecklistLocation.PathFor(profile),catalog);
             if(args.Length==1&&args[0]=="--work-read")
@@ -336,8 +336,8 @@ internal sealed partial class WpfDashboard
             if(fixture&&args.Length==1&&args[0]=="--verify-sources"){WorkSourceVerification.Run(profile);return 0;}
             if(fixture&&args.Length==1&&args[0]=="--verify-task-lists"){TaskListVerification.Run(profile);return 0;}
             if(fixture&&args.Length==1&&args[0]=="--verify-data"){DataVerification.Run(profile);return 0;}
-            bool reviewPolish=fixture&&args.Length==1&&args[0]=="--verify-review-polish";
-            bool layoutOnly=reviewPolish||(fixture&&args.Length==1&&args[0]=="--verify-layout");if(layoutOnly)args=new string[0];
+            bool firstRunReview=fixture&&args.Length==1&&args[0]=="--verify-first-run";bool reviewPolish=fixture&&args.Length==1&&args[0]=="--verify-review-polish";
+            bool layoutOnly=firstRunReview||reviewPolish||(fixture&&args.Length==1&&args[0]=="--verify-layout");if(layoutOnly)args=new string[0];
             bool verifyIcon=args.Length==1&&args[0]=="--verify-icon-relaunch";if(verifyIcon)args=new string[0];
             bool verifyIconSave=fixture&&args.Length==1&&args[0]=="--verify-icon-save";if(verifyIconSave)args=new string[0];
             bool currentWork=args.Length==1&&args[0]=="--current-work";
@@ -381,7 +381,7 @@ internal sealed partial class WpfDashboard
                     app.Resources.MergedDictionaries.Add(Load<ResourceDictionary>("ForgePresentation.xaml"));
                     bool firstSetup=!verify&&!layoutOnly&&!verifyIcon&&!verifyIconSave&&NeedsFirstSetup(profile);
                     var dashboard=new WpfDashboard(profile,fixture);
-                    if(layoutOnly){if(reviewPolish)dashboard.VerifyReviewPolish();else dashboard.VerifyLayoutOnly();return 0;}
+                    if(layoutOnly){if(firstRunReview)dashboard.VerifyFirstRun();else if(reviewPolish)dashboard.VerifyReviewPolish();else dashboard.VerifyLayoutOnly();return 0;}
                     if(verifyIcon){dashboard.window.ShowActivated=false;dashboard.window.ShowInTaskbar=false;dashboard.window.Left=-32000;dashboard.window.Top=-32000;dashboard.window.Show();dashboard.VerifyNativeIcon();dashboard.Exit();return 0;}
                     if(verify)
                     {

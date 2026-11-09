@@ -1,0 +1,5 @@
+EXAMPLE DOCUMENT
+
+This is a generic sample document supplied with Local Dashboard.
+Use Edit below the sidebar to choose a document of your own.
+Agent tasks and Personal tasks are separate lists selected in Settings > Tasks.

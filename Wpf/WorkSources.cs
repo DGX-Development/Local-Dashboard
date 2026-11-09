@@ -38,9 +38,10 @@ internal static class WorkSources {
         if(personal)throw new IOException("Choose your Personal tasks text file in Settings > Tasks.");
         string path=DashboardData.WorkPath(profile),legacy=Path.Combine(profile,".local","current-work-source.json");
         if(!File.Exists(path)){
-            path=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),"Current Work.txt");
+            path=null;
             if(File.Exists(legacy)){var c=AppData.Json.Deserialize<AssistantWorkSource>(File.ReadAllText(legacy));if(c==null||c.schemaVersion!=1)throw new IOException("Invalid existing source configuration.");path=c.path;}
         }
+        if(String.IsNullOrWhiteSpace(path))throw new IOException("Choose your Agent tasks text file in Settings > Tasks.");
         var result=new WorkSourceChoice{schemaVersion=1,kind=path!=null&&path.StartsWith(@"\\")?"network":"local",path=path};Validate(result);return result;
     }
     internal static string Identity(WorkSourceChoice choice){Validate(choice);return CloudSources.IsCloud(choice.kind)?choice.kind+":"+choice.path:choice.path.ToUpperInvariant();}

@@ -4,9 +4,9 @@
 
 Local Dashboard is a Windows app for opening your project folders, documents and websites, and keeping task lists together in one place.
 
-## Install 2.2.0
+## Install 2.2.1
 
-Download **LocalDashboard-2.2.0-Setup.exe** from the [2.2.0 release](https://github.com/DGX-Development/Local-Dashboard/releases/tag/v2.2.0). This repository is private, so downloads require an account with access.
+Download **LocalDashboard-2.2.1-Setup.exe** from the [2.2.1 release](https://github.com/DGX-Development/Local-Dashboard/releases/tag/v2.2.1). This repository is private, so downloads require an account with access.
 
 1. Close any older Dashboard copy using **File > Exit**, including copies in the system tray.
 2. Run Setup. It installs for your Windows account under `%LOCALAPPDATA%\Programs\Local Dashboard` by default. A desktop shortcut is optional.
@@ -14,9 +14,11 @@ Download **LocalDashboard-2.2.0-Setup.exe** from the [2.2.0 release](https://git
 
 Requirements: Windows 10 22H2 or Windows 11 on x64, with .NET Framework 4.8 or newer. The installer is unsigned. Release files include SHA-256 checksums.
 
-The optional portable ZIP contains an `App` folder. Extract it to a writable folder and run `LocalDashboard.exe`; keep all six supplied files together. Do not run from inside the ZIP.
+The optional portable ZIP contains an `App` folder. Extract it to a writable folder and run `LocalDashboard.exe`; keep all eight supplied files together. Do not run from inside the ZIP.
 
 For an existing configuration, first use **File > Back up configuration** in your previous copy, then **File > Restore configuration** in the new copy. Review the task-list restore option before choosing it. Installation does not migrate or reconnect your existing profiles automatically. See the [installation notes](Packaging/INSTALL.txt).
+
+A fresh install shows **Projects**, **Documents**, **Websites** and **All links**, with one generic example in each of the first three categories. Agent tasks and Personal tasks remain unselected until you choose files. Checklists starts empty inside the app's data folder. Existing profiles keep their catalog and saved labels.
 
 ## What it does
 
@@ -47,13 +49,13 @@ The current application is WPF. Use Windows PowerShell or PowerShell 7, the Wind
 & '.\Build-Installer.ps1' -Compiler 'C:\path\to\Inno Setup\ISCC.exe'
 ```
 
-The script builds the app, creates an exact six-file payload with a generic starter catalog, and produces Setup, a portable ZIP and checksums under `.dev\Review\Dashboard21\Navigation219\Release220`. It refuses to overwrite an existing payload; use `-OutputDirectory` with a fresh directory under `.dev\Review` for another build. Local profiles, task files and private development notes are excluded.
+The script builds the app, creates an exact eight-file payload with a generic starter catalog, and produces Setup, a portable ZIP and checksums under `.dev\Review\Dashboard21\Navigation219\Release221`. It refuses to overwrite an existing payload; use `-OutputDirectory` with a fresh directory under `.dev\Review` for another build. Local profiles, task files and private development notes are excluded.
 
-`Wpf/Build Wpf.ps1` is the explicit-source application build. `Build Dashboard.ps1`, the browser assets and Node scripts remain legacy sources; they are not the 2.2.0 release build path.
+`Wpf/Build Wpf.ps1` is the explicit-source application build. `Build Dashboard.ps1`, the browser assets and Node scripts remain legacy sources; they are not the 2.2.1 release build path.
 
 ## Verification and known limits
 
-Focused checks covered the task presentation, editing behavior, editor initial selection, shared controls, menus, About and separate-process instance guard. The packaged app's read diagnostic passed after silent installation. Installation, an in-place upgrade and uninstall were checked with disposable data; the catalog and `.local/` survived both upgrade and uninstall. A full accessibility/DPI matrix and the interactive installer wizard were not tested for this release.
+The 2.2.1 first-run check verified the generic sidebar, all three example targets, empty document selections, empty local checklist, Setup Finish, preserved saved labels/sources and unchanged catalog after a no-op edit. The rendered dashboard and setup pages were inspected offscreen. Earlier focused checks covered the task presentation, editing behavior, editor initial selection, shared controls, menus, About and separate-process instance guard. In 2.2.0, the packaged app's read diagnostic and isolated installation, upgrade and uninstall passed, preserving disposable data. The 2.2.1 installer correctly refused installation while Dashboard was running; a complete install/upgrade/uninstall cycle was not repeated for 2.2.1. A full accessibility/DPI matrix and the interactive installer wizard were not tested for this release.
 
 See [CHANGELOG.md](CHANGELOG.md) for the release changes. Use **Help > Help and user guide** for everyday use, or **Help > Report an issue** to copy a report for [DGX Development support](https://dgx.digitalguy.me/contact.html).
 

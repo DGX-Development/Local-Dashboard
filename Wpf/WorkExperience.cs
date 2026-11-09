@@ -23,7 +23,7 @@ internal sealed class QuinnSummary {
             else if(raw.StartsWith(" ")&&line.Length>0){if(field=="status")item.Status+=" "+line;else if(field=="next")item.Next+=" "+line;}
         }return result;
     }
-    internal static string Short(string value,int limit){if(String.IsNullOrWhiteSpace(value))return "Not supplied in the work list.";if(value.Length<=limit)return value;int cut=value.LastIndexOf(' ',limit);return value.Substring(0,cut>limit/2?cut:limit).TrimEnd()+"…";}
+    internal static string Short(string value,int limit){if(String.IsNullOrWhiteSpace(value))return "Not supplied in the work list.";if(value.Length<=limit)return value;int cut=value.LastIndexOf(' ',limit);return value.Substring(0,cut>limit/2?cut:limit).TrimEnd()+"â€¦";}
 }
 
 internal sealed partial class WpfDashboard {
@@ -55,11 +55,7 @@ internal sealed partial class WpfDashboard {
         window.Width=Math.Max(window.MinWidth,Math.Min(window.Width,end.X-start.X));window.Height=Math.Max(window.MinHeight,Math.Min(window.Height,end.Y-start.Y));
         window.Left=Math.Max(start.X,Math.Min(Double.IsNaN(window.Left)?start.X:window.Left,end.X-window.Width));window.Top=Math.Max(start.Y,Math.Min(Double.IsNaN(window.Top)?start.Y:window.Top,end.Y-window.Height));
     }
-    static string SectionLabel(string id,string label){
-        string standard=SidebarStore.DefaultLabel(id);
-        if(!String.Equals(label,standard,StringComparison.OrdinalIgnoreCase))return label;
-        switch(id){case "software":return "Software projects";case "media":return "Broadcast & media";case "website":return "Website projects";case "documents":return "Development documents";case "everyday":return "Websites I use";case "secondary":return "Other workspaces";case "all":return "All links";default:return label;}
-    }
+    static string SectionLabel(string id,string label){return label;}
     void UpdateHeaderActions(){
         var panel=Find<WrapPanel>("CompactToolbar");
         foreach(Button button in panel.Children){

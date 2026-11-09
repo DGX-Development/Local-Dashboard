@@ -1,12 +1,47 @@
 [
   {
+    "id": "example-project",
+    "name": "Example project",
+    "displayName": "Example project",
+    "section": "software",
+    "description": "A sample folder. Use Edit to choose one of your own project folders.",
+    "targets": [
+      {
+        "id": "open",
+        "kind": "folder",
+        "path": "@app/Examples/Example project",
+        "label": "Folder"
+      }
+    ]
+  },
+  {
+    "id": "example-document",
+    "name": "Example document",
+    "displayName": "Example document",
+    "section": "documents",
+    "description": "A sample document. Use Edit to choose one of your own documents.",
+    "targets": [
+      {
+        "id": "open",
+        "kind": "document",
+        "path": "@app/Examples/Example document.txt",
+        "label": "Open"
+      }
+    ]
+  },
+  {
     "id": "example-website",
     "name": "Example website",
+    "displayName": "Example website",
     "section": "everyday",
-    "description": "Replace this example in your local catalog.",
-    "iconAsset": "local-dashboard.svg",
+    "description": "A sample website. Use Edit to enter a website you use.",
     "targets": [
-      { "id": "website", "kind": "web", "url": "https://example.com", "label": "Website" }
+      {
+        "id": "open",
+        "kind": "web",
+        "url": "https://example.com",
+        "label": "Website"
+      }
     ]
   }
 ]

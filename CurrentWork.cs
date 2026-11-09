@@ -93,7 +93,7 @@ internal sealed class AssistantWorkSource {
     internal string Path,Text;
     internal static AssistantWorkSource Read(string profile){
         string config=System.IO.Path.Combine(profile,".local","current-work-source.json");
-        string source=System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),"Current Work.txt");
+        string source=null;
 #if WPF_REBUILD
         string managed=DashboardData.WorkPath(profile);
         if(File.Exists(managed))source=managed;
@@ -105,6 +105,7 @@ internal sealed class AssistantWorkSource {
             if(setting==null||setting.schemaVersion!=1||String.IsNullOrWhiteSpace(setting.path)||!System.IO.Path.IsPathRooted(setting.path))throw new IOException("Invalid work source configuration. Use schemaVersion 1 and an absolute text-file path.");
             source=System.IO.Path.GetFullPath(setting.path);
         }
+        if(String.IsNullOrWhiteSpace(source))throw new IOException("Choose your Agent tasks text file in Settings > Tasks.");
         if(!System.IO.Path.GetExtension(source).Equals(".txt",StringComparison.OrdinalIgnoreCase)&&!System.IO.Path.GetExtension(source).Equals(".md",StringComparison.OrdinalIgnoreCase))throw new IOException("Work source must be a .txt or .md file.");
         using(var stream=new FileStream(source,FileMode.Open,FileAccess.Read,FileShare.ReadWrite|FileShare.Delete)){
             if(stream.Length>1024*1024)throw new IOException("Work list is too large (maximum 1 MiB).");
