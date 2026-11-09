@@ -1,6 +1,6 @@
 # Local Dashboard
 
-![Local Dashboard: your workspace, one place](Artwork/Exports/Web/local-dashboard-github-1280x640.png)
+![Local Dashboard: your workspace, one place](Artwork/Exports/Web/local-dashboard-github-studio-readme-1600x400.png)
 
 Local Dashboard is a Windows app for opening your project folders, documents and websites, and keeping task lists together in one place.
 
