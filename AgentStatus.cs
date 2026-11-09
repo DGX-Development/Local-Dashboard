@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Globalization;
@@ -7,7 +7,8 @@ using System.Linq;
 using System.Windows.Forms;
 
 public sealed class StatusProducer {public string id{get;set;} public string name{get;set;} public string heartbeatAt{get;set;} public string connection{get;set;}}
-public sealed class StatusTask {internal StatusSnapshot Source;public string id{get;set;} public string projectPath{get;set;} public string agent{get;set;} public string task{get;set;} public string state{get;set;} public string updatedAt{get;set;}}
+public sealed class StatusReview {public string title{get;set;} public string target{get;set;} public string verifiedAt{get;set;}}
+public sealed class StatusTask {public StatusReview review{get;set;} internal StatusSnapshot Source;public string id{get;set;} public string projectPath{get;set;} public string agent{get;set;} public string task{get;set;} public string state{get;set;} public string updatedAt{get;set;}}
 public sealed class StatusSnapshot {internal int SourceCount;internal int InvalidSources;public int schemaVersion{get;set;} public string generatedAt{get;set;} public StatusProducer producer{get;set;} public List<StatusTask> tasks{get;set;}}
 internal static class AgentFeed {
     internal const int LeaseSeconds=120;
@@ -30,7 +31,7 @@ internal static class AgentFeed {
     internal static bool Fresh(StatusSnapshot feed,StatusTask task,DateTimeOffset now){if(task!=null&&task.Source!=null)feed=task.Source;return feed.producer.connection=="online"&&(now-Time(feed.generatedAt)).TotalSeconds<=LeaseSeconds&&(now-Time(feed.producer.heartbeatAt)).TotalSeconds<=LeaseSeconds&&(task==null||(now-Time(task.updatedAt)).TotalSeconds<=LeaseSeconds);}
     internal static string Stamp(string value){return Time(value).ToLocalTime().ToString("MMM d, HH:mm:ss zzz");}
     static StatusSnapshot ReadOne(string path,List<Entry> entries){using(var stream=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.ReadWrite|FileShare.Delete)){Require(stream.Length<=1024*1024);using(var reader=new StreamReader(stream))return Parse(reader.ReadToEnd(),entries,DateTimeOffset.UtcNow);}}
-    internal static StatusSnapshot Read(List<Entry> entries){var paths=new List<string>();if(File.Exists(FilePath))paths.Add(FilePath);string reports=Path.Combine(AppData.Root,".local","agent-reports");if(Directory.Exists(reports))paths.AddRange(Directory.EnumerateFiles(reports,"*.json").Take(201));Require(paths.Count<=200);if(paths.Count==0)return null;var feeds=new List<StatusSnapshot>();int invalid=0;var ids=new HashSet<string>(StringComparer.Ordinal);foreach(string path in paths){try{var feed=ReadOne(path,entries);if(path!=FilePath)Require(String.Equals(Path.GetFileNameWithoutExtension(path),feed.producer.id,StringComparison.Ordinal));Require(ids.Add(feed.producer.id));feeds.Add(feed);}catch{invalid++;}}Require(feeds.Count>0);return Combine(feeds,invalid);}
+    internal static StatusSnapshot Read(List<Entry> entries,string profile=null){string feedPath=profile==null?FilePath:Path.Combine(profile,".local","agent-status.json");var paths=new List<string>();if(File.Exists(feedPath))paths.Add(feedPath);string reports=Path.Combine(profile??AppData.Root,".local","agent-reports");if(Directory.Exists(reports))paths.AddRange(Directory.EnumerateFiles(reports,"*.json").Take(201));Require(paths.Count<=200);if(paths.Count==0)return null;var feeds=new List<StatusSnapshot>();int invalid=0;var ids=new HashSet<string>(StringComparer.Ordinal);foreach(string path in paths){try{var feed=ReadOne(path,entries);if(path!=feedPath)Require(String.Equals(Path.GetFileNameWithoutExtension(path),feed.producer.id,StringComparison.Ordinal));Require(ids.Add(feed.producer.id));feeds.Add(feed);}catch{invalid++;}}Require(feeds.Count>0);return Combine(feeds,invalid);}
     internal static StatusSnapshot Combine(List<StatusSnapshot> feeds,int invalid){Require(feeds.Count>0&&feeds.Select(f=>f.producer.id).Distinct(StringComparer.Ordinal).Count()==feeds.Count);var merged=new StatusSnapshot{schemaVersion=1,SourceCount=feeds.Count,InvalidSources=invalid,generatedAt=feeds.OrderByDescending(f=>Time(f.generatedAt)).First().generatedAt,producer=new StatusProducer{id="participating-reports",name="Participating task reports",connection="online",heartbeatAt=feeds.OrderByDescending(f=>Time(f.producer.heartbeatAt)).First().producer.heartbeatAt},tasks=new List<StatusTask>()};foreach(var feed in feeds)foreach(var task in feed.tasks){task.Source=feed;merged.tasks.Add(task);}Require(merged.tasks.Count<=200);return merged;}
     internal static void SelfTest(List<Entry> entries){
         var now=DateTimeOffset.UtcNow;var folder=entries.Where(e=>e.section=="software").SelectMany(e=>e.targets).First(t=>t.kind=="folder").path;
@@ -51,7 +52,7 @@ internal sealed class AgentStatusView:Panel {
     List<Entry> entries;string previous;
     internal AgentStatusView(){
         BackColor=DashboardForm.Background;Dock=DockStyle.Fill;
-        heading.Text="Agent Status";heading.Font=new Font("Segoe UI Variable Display",15,FontStyle.Bold);heading.ForeColor=DashboardForm.Ink;heading.SetBounds(16,12,300,30);Controls.Add(heading);
+        heading.Text="Participating Task Reports";heading.Font=new Font("Segoe UI Variable Display",15,FontStyle.Bold);heading.ForeColor=DashboardForm.Ink;heading.SetBounds(16,12,340,30);Controls.Add(heading);
         summary.ForeColor=DashboardForm.Muted;summary.UseMnemonic=false;summary.SetBounds(16,46,380,52);Controls.Add(summary);
         rows.AutoScroll=true;rows.BackColor=BackColor;Controls.Add(rows);
         Resize+=(s,e)=>{summary.Width=Math.Max(100,Width-32);rows.SetBounds(0,104,Width,Math.Max(0,Height-104));PositionRows();};
@@ -61,19 +62,19 @@ internal sealed class AgentStatusView:Panel {
     void AddText(string text,int height,Color color,bool bold){var label=new Label{Text=text,Height=height,ForeColor=color,Font=new Font("Segoe UI Variable Text",bold?10:10,bold?FontStyle.Bold:FontStyle.Regular),UseMnemonic=false,AutoEllipsis=true,Padding=new Padding(16,4,12,0)};rows.Controls.Add(label);}
     void RefreshFeed(bool force){
         if(entries==null)return;StatusSnapshot feed=null;string message;
-        try{feed=AgentFeed.Read(entries);message=feed==null?"No status feed connected.\nA producer must explicitly report task states.":feed.SourceCount>0?"Participating task reports · "+feed.SourceCount+" source(s)"+(feed.InvalidSources>0?" · "+feed.InvalidSources+" invalid":"")+"\nLatest report "+AgentFeed.Stamp(feed.generatedAt):feed.producer.name+" · "+(feed.producer.connection=="offline"?"Offline":AgentFeed.Fresh(feed,null,DateTimeOffset.UtcNow)?"Reporting":"Stale / disconnected")+"\nLast update "+AgentFeed.Stamp(feed.generatedAt);}
+        try{feed=AgentFeed.Read(entries);message=feed==null?"No local task reports found.\nOnly tasks with a supplied report appear here.":feed.SourceCount>0?"Participating task reports · "+feed.SourceCount+" source(s)"+(feed.InvalidSources>0?" · "+feed.InvalidSources+" invalid":"")+"\nLatest report "+AgentFeed.Stamp(feed.generatedAt):feed.producer.name+" · "+(feed.producer.connection=="offline"?"Offline":AgentFeed.Fresh(feed,null,DateTimeOffset.UtcNow)?"Reporting":"Stale / disconnected")+"\nLast update "+AgentFeed.Stamp(feed.generatedAt);}
         catch{message="Status feed unavailable or invalid.\nNo current task state can be verified.";}
         var now=DateTimeOffset.UtcNow;string key=message+(feed==null?"":AppData.Json.Serialize(feed)+feed.InvalidSources+String.Join("",feed.tasks.Select(t=>AgentFeed.Fresh(feed,t,now)?"1":"0")));
         if(!force&&key==previous)return;previous=key;summary.Text=message;
         rows.SuspendLayout();foreach(Control control in rows.Controls.Cast<Control>().ToArray())control.Dispose();rows.AutoScrollPosition=Point.Empty;
-        if(feed==null){AddText("Connect a producer to see active projects here.",52,DashboardForm.Muted,false);}
+        if(feed==null){AddText("A participating source must write a local report before its tasks appear.",52,DashboardForm.Muted,false);}
         else if(feed.tasks.Count==0)AddText("No tasks reported in this snapshot.",48,DashboardForm.Muted,false);
         else foreach(var group in feed.tasks.GroupBy(t=>Path.GetFullPath(t.projectPath).TrimEnd('\\','/'),StringComparer.OrdinalIgnoreCase).OrderBy(g=>AgentFeed.Project(g.Key),StringComparer.CurrentCultureIgnoreCase)){
             AddText(AgentFeed.Project(group.Key),32,DashboardForm.Ink,true);
             foreach(var task in group.OrderBy(t=>Array.IndexOf(AgentFeed.States,t.state))){bool fresh=AgentFeed.Fresh(feed,task,now);var row=new Panel{Height=128,BackColor=DashboardForm.Surface};
                 var badge=new Label{Text=(fresh?"":"Last reported: ")+task.state,ForeColor=SystemInformation.HighContrast?SystemColors.WindowText:fresh?(task.state=="Blocked"?Color.FromArgb(244,170,155):task.state.StartsWith("Waiting")?Color.FromArgb(233,201,136):DashboardForm.Accent):DashboardForm.Muted,Location=new Point(12,7),Height=22,UseMnemonic=false};row.Controls.Add(badge);
                 var name=new Label{Text=task.agent+" · "+task.task,Location=new Point(12,32),Height=38,ForeColor=DashboardForm.Ink,UseMnemonic=false,AutoEllipsis=true};row.Controls.Add(name);
-                var age=new Label{Text=(fresh?"Verified ":"Stale / offline · ")+AgentFeed.Stamp(task.updatedAt),Location=new Point(12,102),Height=22,ForeColor=DashboardForm.Muted,UseMnemonic=false};row.Controls.Add(age);var origin=new Label{Text=task.Source==null?feed.producer.name:task.Source.producer.name,Location=new Point(12,78),Height=20,ForeColor=DashboardForm.Muted,UseMnemonic=false,AutoEllipsis=true};row.Controls.Add(origin);
+                var age=new Label{Text=(fresh?"Reported ":"Stale / offline · ")+AgentFeed.Stamp(task.updatedAt),Location=new Point(12,102),Height=22,ForeColor=DashboardForm.Muted,UseMnemonic=false};row.Controls.Add(age);var origin=new Label{Text=task.Source==null?feed.producer.name:task.Source.producer.name,Location=new Point(12,78),Height=20,ForeColor=DashboardForm.Muted,UseMnemonic=false,AutoEllipsis=true};row.Controls.Add(origin);
                 row.Resize+=(s,e)=>{badge.Width=name.Width=age.Width=origin.Width=Math.Max(50,row.Width-24);};rows.Controls.Add(row);
             }
         }

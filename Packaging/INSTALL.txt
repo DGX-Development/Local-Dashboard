@@ -1,0 +1,41 @@
+LOCAL DASHBOARD 2.2.0
+
+Close any existing Local Dashboard using File > Exit before installing.
+
+Setup installs for your Windows account, normally under:
+%LOCALAPPDATA%\Programs\Local Dashboard
+
+Open Local Dashboard from the Start menu. A desktop shortcut is optional.
+The setup walkthrough opens for a new profile. Help > Run setup again opens it later.
+
+This download contains a starter catalog, not your personal files. To carry over
+an existing Dashboard configuration, first use File > Back up configuration in
+your existing copy. In the installed copy, use File > Restore configuration.
+Review the restored-list option before selecting it. Keep your original backup.
+
+The catalog and .local settings/checklist folder live beside the executable.
+Upgrades preserve existing catalog.json and .local data. Uninstall removes the
+program but retains this data. Linked task documents stay in their own locations.
+Back up configuration before manually editing or moving the application folder.
+
+Agent tasks displays your selected agent-maintained text file. Personal tasks
+can edit its selected text file. Checklists is the separate quick checklist.
+Choose task file locations in Settings > Tasks. Cloud sign-in is coming soon;
+local files in an already-synced folder can be selected now.
+
+Local Dashboard 2.2.0 and newer share one running instance per Windows user.
+Older builds do not contain the same guard. Retire old launchers after confirming
+the installed copy works and your desired data has been restored.
+
+New dashboard links can be configured in catalog.json. The Edit window updates
+existing entries and destinations; the setup walkthrough does not add them for you.
+
+Help > Report an issue creates a report you can copy into a support message.
+https://dgx.digitalguy.me/contact.html
+
+Requirements: Windows 10 22H2 or Windows 11 on x64, with .NET Framework 4.8+.
+The installer is unsigned. GitHub release SHA-256 checksums identify its files.
+
+Interface artwork: Microsoft Fluent System Icons, with LICENSE and NOTICE included.
+Application and DGX artwork retain their existing rights; no open-source license
+for the application is granted by this download.

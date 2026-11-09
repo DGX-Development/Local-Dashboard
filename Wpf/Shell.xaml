@@ -1,0 +1,33 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Width="1280" Height="860" MinWidth="760" MinHeight="540" WindowStartupLocation="CenterScreen"
+ Background="{DynamicResource Background}" Foreground="{DynamicResource ThemeF2F2F2}"
+ TextOptions.TextFormattingMode="Display" RenderOptions.BitmapScalingMode="HighQuality" SnapsToDevicePixels="True" FontFamily="Segoe UI Variable Text" FontSize="14" UseLayoutRounding="True">
+ <DockPanel Background="{DynamicResource Background}">
+  <Menu x:Name="AppMenu" DockPanel.Dock="Top" Padding="10,2" Height="37">
+   <MenuItem Header="_File"><MenuItem x:Name="RefreshMenu" Header="Refresh directory"/><Separator/><MenuItem x:Name="BackupMenu" Header="Back up configuration…"/><MenuItem x:Name="RestoreMenu" Header="Restore configuration…"/><Separator/><MenuItem x:Name="SettingsMenu" Header="Settings…"/><Separator/><MenuItem x:Name="HideMenu" Header="Hide to tray"/><MenuItem x:Name="ExitMenu" Header="Exit" InputGestureText="Ctrl+Q"/></MenuItem>
+   <MenuItem Header="_View"><MenuItem x:Name="DirectoryMenu" Header="Dashboard"/><MenuItem x:Name="WorkMenu" Header="Tasks"/><MenuItem x:Name="CompactMenu" Header="Compact view"/><MenuItem x:Name="ReportsMenu" Header="Needs your attention" Visibility="Collapsed"/><MenuItem x:Name="TopMenu" Header="Always on top" IsCheckable="True"/></MenuItem>
+   <MenuItem Header="_Help"><MenuItem x:Name="GuideMenu" Header="Help &amp; user guide" InputGestureText="F1"/><MenuItem x:Name="SetupMenu" Header="Run setup again…"/><MenuItem x:Name="ReportIssueMenu" Header="Report an issue…"/><Separator/><MenuItem x:Name="AboutMenu" Header="About Local Dashboard"/></MenuItem>
+  </Menu>
+
+  <Grid>
+   <Grid.ColumnDefinitions><ColumnDefinition x:Name="SidebarColumn" Width="252"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+   <Border x:Name="Sidebar" Padding="18,16" Background="{DynamicResource Theme262626}">
+    <ScrollViewer x:Name="SidebarScroll" VerticalScrollBarVisibility="Auto"><DockPanel MinHeight="{Binding ViewportHeight, ElementName=SidebarScroll}"><StackPanel x:Name="SidebarFooter" DockPanel.Dock="Bottom" Margin="0,24,0,0"/><StackPanel>
+     <Image x:Name="Brand" Width="48" Height="48" HorizontalAlignment="Left"/>
+     <TextBlock Text="Local Dashboard" FontSize="20" FontWeight="SemiBold" Margin="0,10,0,4"/>
+     <TextBlock Text="Your local workspace" Foreground="{DynamicResource Theme969696}" FontSize="9" Margin="0,0,0,18"/>
+     <StackPanel x:Name="Navigation"/>
+    </StackPanel></DockPanel></ScrollViewer>
+   </Border>
+   <DockPanel x:Name="MainContent" Grid.Column="1" Margin="30,24,30,20">
+    <StackPanel DockPanel.Dock="Top"><WrapPanel x:Name="CompactToolbar" Margin="0,0,0,12"/>
+     <TextBlock x:Name="Heading" FontSize="29" FontWeight="SemiBold"/>
+     <DockPanel x:Name="SearchBar" Margin="0,12,0,14"><Button x:Name="OpenFolder" DockPanel.Dock="Right" Content="Open folder" Height="36" VerticalAlignment="Center" Margin="9,0,0,0"/><Grid><TextBox x:Name="Search" AutomationProperties.Name="Search all links" Height="36" VerticalContentAlignment="Center" Margin="0"/><TextBlock Text="Search" Margin="11,0" VerticalAlignment="Center" Foreground="{DynamicResource Muted}" IsHitTestVisible="False"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding Text,ElementName=Search}" Value=""><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></Grid></DockPanel>
+    </StackPanel>
+    <StackPanel x:Name="WorkNavigation" DockPanel.Dock="Top" Visibility="Collapsed"/>
+    <ScrollViewer x:Name="ContentScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel x:Name="Rows" Margin="0,0,14,0"/></ScrollViewer>
+   </DockPanel>
+  </Grid>
+ </DockPanel>
+</Window>

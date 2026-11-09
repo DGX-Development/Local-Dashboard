@@ -25,7 +25,7 @@ internal static class ReorderDrag {
     }
     internal static void Target(Control row,string format,Func<string,bool> valid,Action<string,bool> drop){
         var line=new Panel{BackColor=DashboardForm.Accent,Height=3,Visible=false,Enabled=false};row.Controls.Add(line);
-        DragEventHandler over=(s,e)=>{string value=e.Data.GetDataPresent(format)?Convert.ToString(e.Data.GetData(format)):null;if(value==null||!valid(value)){e.Effect=DragDropEffects.None;Clear();return;}e.Effect=DragDropEffects.Move;Point p=row.PointToClient(new Point(e.X,e.Y));bool after=p.Y>=row.Height/2;if(marker!=line)Clear();marker=line;line.SetBounds(0,after?row.Height-3:0,row.Width,3);line.Visible=true;line.BringToFront();Follow();ScrollEdge(row,new Point(e.X,e.Y));};
+        DragEventHandler over=(s,e)=>{string value=e.Data.GetDataPresent(format)?Convert.ToString(e.Data.GetData(format)):null;if(value==null||!valid(value)){e.Effect=DragDropEffects.None;Clear();return;}e.Effect=DragDropEffects.Move;Point p=row.PointToClient(new Point(e.X,e.Y));bool after=p.Y>=row.Height/2;if(marker!=line)Clear();marker=line;line.BackColor=DashboardForm.Accent;line.SetBounds(0,after?row.Height-3:0,row.Width,3);line.Visible=true;line.BringToFront();Follow();ScrollEdge(row,new Point(e.X,e.Y));};
         DragEventHandler finish=(s,e)=>{string value=e.Data.GetDataPresent(format)?Convert.ToString(e.Data.GetData(format)):null;bool after=row.PointToClient(new Point(e.X,e.Y)).Y>=row.Height/2;Clear();if(value!=null&&valid(value))Commit(()=>drop(value,after));};
         Bind(row,over,finish);row.DragLeave+=(s,e)=>Clear();
     }

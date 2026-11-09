@@ -1,4 +1,4 @@
-﻿param([switch]$Review,[string]$OutputPath)
+param([switch]$Review,[string]$OutputPath)
 $ErrorActionPreference='Stop'
 Add-Type -AssemblyName System.Drawing
 $root=$PSScriptRoot
@@ -30,11 +30,11 @@ try{
 }finally{$writer.Dispose();$output.Dispose()}
 }
 $iconPath=Join-Path $root 'dist\icons\local-dashboard.ico'
-$target=if($OutputPath){[IO.Path]::GetFullPath($OutputPath)}elseif($Review){Join-Path $root '.dev\Review\Combined\LocalDashboard.1.4.3.Review.exe'}else{Join-Path $root 'LocalDashboard.exe'}
+$target=if($OutputPath){[IO.Path]::GetFullPath($OutputPath)}elseif($Review){Join-Path $root '.dev\Review\Combined\LocalDashboard.1.5.6.Review.exe'}else{Join-Path $root 'LocalDashboard.exe'}
 if($Review){New-Item -ItemType Directory -Force -Path (Split-Path -Parent $target) | Out-Null}
 $compiler=Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 if($Review){$iconPath=Join-Path $root '.dev\Review\Icon\local-dashboard-draft.ico';if(!(Test-Path -LiteralPath $iconPath)){& (Join-Path $root '.dev\Tools\Export-Dashboard-Icon.ps1')}}
-& $compiler /nologo /target:winexe /optimize+ /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll ('/win32icon:'+$iconPath) ('/out:'+$target) (Join-Path $root 'LocalDashboard.cs') (Join-Path $root 'AgentStatus.cs') (Join-Path $root 'DashboardControls.cs') (Join-Path $root 'CurrentWork.cs') (Join-Path $root 'DashboardInformation.cs') (Join-Path $root 'SidebarEditor.cs') (Join-Path $root 'ReorderDrag.cs') (Join-Path $root 'WindowSettings.cs')
+& $compiler /nologo /target:winexe /optimize+ /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll ('/win32icon:'+$iconPath) ('/out:'+$target) (Join-Path $root 'LocalDashboard.cs') (Join-Path $root 'AgentStatus.cs') (Join-Path $root 'DashboardControls.cs') (Join-Path $root 'CurrentWork.cs') (Join-Path $root 'DashboardInformation.cs') (Join-Path $root 'SidebarEditor.cs') (Join-Path $root 'ReorderDrag.cs') (Join-Path $root 'WindowSettings.cs') (Join-Path $root 'CatalogEditor.cs')
 if($LASTEXITCODE -ne 0){throw 'Windows helper compilation failed'}
 Write-Output ('Built '+$target)
 

@@ -20,6 +20,8 @@
 /.dev/Human Maintenance.md
 /.dev/Current Work Contract.md
 /.dev/Agent Status Contract.md
+/.dev/Task List Format.md
+/AGENTS.md
 /.dev/Tools/Test-*.cjs
 /.dev/Tools/Test-*.ps1
 /.dev/Tools/Publish-TaskStatus.ps1
