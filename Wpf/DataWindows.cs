@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -35,7 +35,6 @@ internal sealed partial class WpfDashboard {
         return presentDialog(dialog)==true;
     }
     void BackupConfiguration(){
-        if(Moving)throw new IOException("Save or cancel the current move first.");
         if(!DataConfirmation("Back up Dashboard","Configuration and task-list copies","Includes your settings, dashboard links, favorites and layout, plus copies of Agent tasks, Personal tasks and Checklist when available. The result tells you if a list could not be copied. Linked project files, online-only content and progress reports are not included.","Continue"))return;
         var picker=new SaveFileDialog{Title="Back up Dashboard configuration",FileName="local-dashboard-"+DateTime.Now.ToString("yyyy-MM-dd")+".json",Filter="Dashboard configuration|*.json",AddExtension=true,DefaultExt=".json"};
         if(picker.ShowDialog(window)!=true)return;
@@ -43,9 +42,16 @@ internal sealed partial class WpfDashboard {
         DataConfirmation("Backup saved","Dashboard backup saved",DashboardData.TaskCopySummary(saved)+"\r\n\r\nYour original lists and linked files were not changed.","Close");
     }
     void RestoreConfiguration(){
-        if(Moving)throw new IOException("Save or cancel the current move first.");
         var picker=new OpenFileDialog{Title="Restore Dashboard configuration",Filter="Dashboard backups|*.json"};
         if(picker.ShowDialog(window)!=true)return;
+        var catalog=DashboardData.CatalogImportData(picker.FileName);
+        if(catalog!=null){
+            string currentHash=DashboardData.Hash(DashboardData.ReadBounded(Path.Combine(profile,"catalog.json")));
+            int count=DashboardData.CatalogCount(catalog,profile);
+            if(!DataConfirmation("Import dashboard links","This file contains dashboard links only",count+" links will replace your current dashboard links. This does not restore settings, category labels or favorites. Your task-list selections and checklist stay unchanged. A copy of the current catalog will be saved before import.\r\n\r\nLinked files and folders are not copied or deleted. Check that their destinations are available on this PC.","Import links"))return;
+            string retained=DashboardData.ImportCatalog(profile,catalog,currentHash);Reload();
+            DataConfirmation("Dashboard links imported",count+" dashboard links imported","Previous catalog retained at:\r\n"+retained+"\r\n\r\nSettings and task lists were not changed. All links shows every imported link.","Close");return;
+        }
         var backup=DashboardData.Load(picker.FileName);
         DashboardData.CheckBackup(profile,backup);
         var content=new DockPanel{Margin=new Thickness(28)};var actions=new WrapPanel{HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,18,0,0)};DockPanel.SetDock(actions,Dock.Bottom);content.Children.Add(actions);

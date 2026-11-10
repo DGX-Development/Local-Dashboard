@@ -4,12 +4,12 @@
 #ifndef OutputFolder
   #error Supply OutputFolder for the installer
 #endif
-#define AppVersion "2.2.1"
+#define AppVersion "2.2.2"
 [Setup]
 AppId={{8C259AD3-7B64-4C7E-9D9A-ECD1E5543B61}
 AppName=Local Dashboard
 AppVersion={#AppVersion}
-VersionInfoVersion=2.2.1.0
+VersionInfoVersion=2.2.2.5
 AppPublisher=DGX Development
 AppPublisherURL=https://dgx.digitalguy.me/
 AppSupportURL=https://dgx.digitalguy.me/contact.html
@@ -20,7 +20,7 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0.19045
 OutputDir={#OutputFolder}
-OutputBaseFilename=LocalDashboard-2.2.1-Setup
+OutputBaseFilename=LocalDashboard-2.2.2-Setup
 SetupIconFile={#PackageDir}\local-dashboard.ico
 UninstallDisplayIcon={app}\LocalDashboard.exe
 WizardStyle=modern

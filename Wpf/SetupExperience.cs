@@ -20,11 +20,32 @@ internal sealed partial class WpfDashboard {
             CaptureShell(profile,"first-run-dashboard.png",1120,820);
             presentDialog=dialog=>{
                 var root=dialog.Content as DependencyObject;
+                if(dialog.Title=="Choose source")
+                {
+                    Capture(dialog.Content as UIElement,Path.Combine(profile,"first-run-source-chooser.png"),504,361);
+                    foreach(string provider in new[]{"Google Drive","Dropbox","OneDrive"})
+                        if(Visuals<Button>(root).Single(button=>Equals(button.Content,provider)).IsEnabled)
+                            throw new Exception("Unconnected provider is enabled.");
+                    if(!Visuals<Button>(root).Single(button=>Equals(button.Content,"File on this PC")).IsEnabled)
+                        throw new Exception("Local source is unavailable.");
+                    dialog.Close();return false;
+                }
+                if(dialog.Title=="Help & user guide")
+                {
+                    Capture(dialog.Content as UIElement,Path.Combine(profile,"first-run-ai-guide.png"),884,581);
+                    if(!Visuals<TextBlock>(root).Any(text=>text.Text.Contains(DashboardHelp.AiSetupPrompt))||
+                       !Visuals<Button>(root).Any(button=>Equals(button.Content,"Copy setup prompt")&&button.Visibility==Visibility.Visible))
+                        throw new Exception("Setup did not open the AI guide and prompt.");
+                    dialog.Close();return false;
+                }
                 Capture(dialog.Content as UIElement,Path.Combine(profile,"first-run-setup-1.png"),744,681);
+                ClickIn(root,"AI setup guide");
+                ClickIn(root,"Next");Capture(dialog.Content as UIElement,Path.Combine(profile,"first-run-setup-link.png"),744,681);
                 ClickIn(root,"Next");Capture(dialog.Content as UIElement,Path.Combine(profile,"first-run-setup-2.png"),744,681);
                 foreach(string name in new[]{"Agent tasks list location","Personal tasks list location"})
                     if(Visuals<TextBox>(root).Single(t=>System.Windows.Automation.AutomationProperties.GetName(t)==name).Text!="")throw new Exception("Setup prefilled a document source.");
-                if(Visuals<TextBox>(root).Single(t=>System.Windows.Automation.AutomationProperties.GetName(t)=="Checklist list location").Text!=Path.Combine(profile,".local","current-work.json"))throw new Exception("Checklist default differs.");
+                if(Visuals<TextBox>(root).Any(t=>System.Windows.Automation.AutomationProperties.GetName(t)=="Checklist list location"))throw new Exception("Setup still asks users to choose checklist storage.");
+                Visuals<Button>(root).First(button=>Equals(button.Content,"Choose source…")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 ClickIn(root,"Next");ClickIn(root,"Finish");dialog.Close();return true;
             };
             ShowSetup();
@@ -48,23 +69,122 @@ internal sealed partial class WpfDashboard {
     void RecordSetupVisit(){DashboardData.Atomic(StatePath("setup.json"),Encoding.UTF8.GetBytes("{\"schemaVersion\":1,\"visited\":true}"));}
     void ShowSetup(){ShowSetup(false);}
     void ShowSetup(bool firstRun){
-        if(Moving)throw new IOException("Save or cancel the current move first.");
         var root=new DockPanel{Margin=new Thickness(28)};var progress=WorkText("",true);DockPanel.SetDock(progress,Dock.Top);root.Children.Add(progress);
         var actions=new WrapPanel{HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,18,0,0)};DockPanel.SetDock(actions,Dock.Bottom);root.Children.Add(actions);
         var host=new ScrollViewer{VerticalScrollBarVisibility=ScrollBarVisibility.Auto};root.Children.Add(host);
-        var welcome=new StackPanel();welcome.Children.Add(new TextBlock{Text="Make Dashboard yours",FontSize=24,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,8,0,18)});welcome.Children.Add(WorkText("A new Dashboard starts with Projects, Documents, Websites and All links. Each of the first three contains one clearly labeled example. Use Edit below the sidebar to choose your own folder, document or website; use Move to rename or reorder categories. Existing profiles keep their saved links and labels. Dashboard also brings three task sections together. You can skip setup and change these choices later in Settings."));welcome.Children.Add(WorkText("Agent tasks",true));welcome.Children.Add(WorkText("A saved text or Markdown list maintained by your agent. Dashboard reads it; it does not send instructions or change the original."));welcome.Children.Add(WorkText("Personal tasks",true));welcome.Children.Add(WorkText("Your separate text or Markdown document. Add or edit tasks in Dashboard, or use your usual editor. Save updates the selected file."));welcome.Children.Add(WorkText("Checklists",true));welcome.Children.Add(WorkText("The list you manage in Dashboard. Add, edit and check off tasks; changes save automatically. Its default location is inside your Dashboard data folder. On a fresh installation, Agent tasks and Personal tasks are unselected until you choose files on the next page. You can leave them empty."));
-        Action saveLists;var locations=BuildWorkSource(out saveLists);
-        var finish=new StackPanel();finish.Children.Add(new TextBlock{Text="Know where the window goes",FontSize=24,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,8,0,18)});
-        finish.Children.Add(WorkText("X button",true));finish.Children.Add(WorkText(preferenceStore.Value.closeToTray?"Currently, X hides Dashboard in the system tray near the Windows clock. It keeps running.":"Currently, X quits Dashboard."));
-        finish.Children.Add(WorkText("Minimize button",true));finish.Children.Add(WorkText(preferenceStore.Value.minimizeToTray?"Currently, minimize also hides Dashboard in the system tray.":"Currently, minimize leaves Dashboard on the taskbar."));
-        finish.Children.Add(WorkText("Double-click the tray icon to bring Dashboard back. File > Exit or the tray menu's Exit always quits."));finish.Children.Add(WorkText("Change these choices in Settings > Window. Settings > Appearance controls the theme, accent and task-button labels. Help > Run setup again returns here."));finish.Children.Add(WorkText("Finish saves only the list locations you changed. It does not turn on Windows startup or connect online accounts."));
-        var pages=new FrameworkElement[]{welcome,locations,finish};int page=0;bool completed=false;var dialog=Dialog("Set up Local Dashboard",760,720,root);
+        var dialog=Dialog("Set up Local Dashboard",760,720,root);
+        var welcome=new StackPanel();
+        welcome.Children.Add(SetupHeading("Try a Dashboard link"));
+        welcome.Children.Add(WorkText("Open a sample to see what a Dashboard link does."));
+        var samples=new WrapPanel{Margin=new Thickness(0,10,0,14)};
+        foreach(var sample in entries.Where(entry=>new[]{"example-project","example-document","example-website"}.Contains(entry.id)))
+        {
+            var entry=sample;
+            var target=entry.targets.FirstOrDefault();
+            if(target!=null)samples.Children.Add(SourceAction(entry.name,()=>Protect(()=>AppData.Open(entries,entry.id,target.id,profile))));
+        }
+        welcome.Children.Add(samples);
+        welcome.Children.Add(WorkText("Want help planning your Dashboard?"));
+        welcome.Children.Add(SourceAction("AI setup guide",()=>ShowHelp(DashboardHelp.AiSetupTitle,dialog)));
+
+        var catalog=new CatalogDraft(Path.Combine(profile,"catalog.json"));
+        Func<Entry> saveLink;
+        var firstLink=BuildSetupLink(out saveLink);
+        Action saveLists;
+        var locations=BuildWorkSource(out saveLists,true);
+        locations.Children.Insert(0,SetupHeading("Choose your task sources"));
+        locations.Children.Insert(1,WorkText("This step is optional. You can choose or change a source later in Settings."));
+        var finish=new StackPanel();
+        finish.Children.Add(SetupHeading("Ready to use Dashboard"));
+        finish.Children.Add(WorkText("Finish saves your first link and any task sources you chose."));
+        finish.Children.Add(WorkText("Use Edit in the Dashboard sidebar to add another link or organize your categories."));
+        finish.Children.Add(WorkText("Switch to Tasks from the sidebar when you want to work with your lists. You can rename the task buttons later in Settings > Tasks."));
+        var pages=new FrameworkElement[]{welcome,firstLink,locations,finish};
+        int page=0;
+        bool completed=false;
+        Entry added=null;
         var skip=StandardAction(new Button{Content="Skip setup",IsCancel=true});var back=StandardAction(ActionButton("Back",()=>{}));var next=StandardAction(ActionButton("Next",()=>{}));actions.Children.Add(skip);actions.Children.Add(back);actions.Children.Add(next);
-        Action render=()=>{progress.Text="Step "+(page+1)+" of 3";host.Content=pages[page];host.ScrollToHome();back.IsEnabled=page>0;next.Content=page==2?"Finish":"Next";};
+        Action render=()=>{progress.Text="Step "+(page+1)+" of "+pages.Length;host.Content=pages[page];host.ScrollToHome();back.IsEnabled=page>0;next.Content=page==pages.Length-1?"Finish":"Next";};
         back.Click+=(s,e)=>{if(page>0){page--;render();}};
-        next.Click+=(s,e)=>Protect(()=>{if(page<2){page++;render();return;}saveLists();RecordSetupVisit();completed=true;if(!nonWindowedVerification)dialog.DialogResult=true;});
+        next.Click+=(s,e)=>Protect(()=>{
+            if(page<pages.Length-1){page++;render();return;}
+            var pending=saveLink();
+            if(pending!=null&&added==null)
+            {
+                var target=pending.targets.Single();
+                var entry=catalog.Add(pending.section,target.kind);
+                entry.name=pending.name;entry.targets[0].path=target.path;entry.targets[0].url=target.url;
+                try{catalog.Save();added=entry;}catch{catalog.Remove(entry);throw;}
+            }
+            saveLists();
+            RecordSetupVisit();completed=true;
+            if(!nonWindowedVerification)dialog.DialogResult=true;
+        });
         render();try{presentDialog(dialog);}finally{if(firstRun&&!completed)RecordSetupVisit();}
+        if(added!=null)
+        {
+            Reload();Select(added.section);
+            var row=rows.Children.OfType<Border>().FirstOrDefault(item=>Equals(item.Tag,added.id));
+            if(row!=null)
+            {
+                row.BringIntoView();
+                var button=Visuals<Button>(row).FirstOrDefault();
+                if(button!=null)button.Focus();
+            }
+        }
     }
+    static TextBlock SetupHeading(string text)
+    {
+        return new TextBlock{Text=text,FontSize=24,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,8,0,12)};
+    }
+
+    StackPanel BuildSetupLink(out Func<Entry> readDraft)
+    {
+        var body=new StackPanel();
+        body.Children.Add(SetupHeading("Add your first link"));
+        body.Children.Add(WorkText("What do you open often? Add one here, or leave it blank and choose Next."));
+        var name=new TextBox{MaxLength=120};
+        Field(body,"Name",name);
+        body.Children.Add(WorkText("Opens",true));
+        var kind=new ComboBox{ItemsSource=new[]{"Folder","Document","Website"},SelectedIndex=0};
+        body.Children.Add(kind);
+        var location=new TextBox();
+        Func<string> kindValue=()=>new[]{"folder","document","web"}[Math.Max(0,kind.SelectedIndex)];
+        var browse=SourceAction("Browse…",()=>Browse(location,new LinkTarget{kind=kindValue()}));
+        var locationLabel=Field(body,"Folder",location,browse);
+        body.Children.Add(WorkText("Category",true));
+        var category=new ComboBox{ItemsSource=layout.items.Where(item=>item.id!="all"&&SidebarStore.Known(item.id)).ToList(),
+            ItemTemplate=(DataTemplate)System.Windows.Markup.XamlReader.Parse("<DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'><TextBlock Text='{Binding label}'/></DataTemplate>")};
+        body.Children.Add(category);
+        Action suggest=()=>{
+            locationLabel.Text=(string)kind.SelectedItem=="Website"?"Website address":(string)kind.SelectedItem;
+            browse.Visibility=kindValue()=="web"?Visibility.Collapsed:Visibility.Visible;
+            System.Windows.Automation.AutomationProperties.SetName(location,locationLabel.Text);
+            string preferred=kindValue()=="web"?"everyday":kindValue()=="document"?"documents":"software";
+            category.SelectedItem=category.Items.OfType<SidebarItem>().FirstOrDefault(item=>item.id==preferred)
+                ??category.Items.OfType<SidebarItem>().FirstOrDefault();
+        };
+        kind.SelectionChanged+=(sender,args)=>suggest();
+        suggest();
+        Func<Entry> draft=()=>{
+            if(String.IsNullOrWhiteSpace(name.Text)&&String.IsNullOrWhiteSpace(location.Text))return null;
+            var group=category.SelectedItem as SidebarItem;
+            if(group==null)throw new IOException("Choose a Dashboard category, or add the link later in Edit.");
+            if(String.IsNullOrWhiteSpace(name.Text)||String.IsNullOrWhiteSpace(location.Text))throw new IOException("Enter a name and location for your link.");
+            string type=kindValue(),address=location.Text.Trim();
+            var target=new LinkTarget{id="open",kind=type,path=type=="web"?null:address,url=type=="web"?address:null};
+            AppData.Validate(target);
+            return new Entry{id="setup-draft",name=name.Text.Trim(),section=group.id,targets=new System.Collections.Generic.List<LinkTarget>{target}};
+        };
+        body.Children.Add(SourceAction("Try link",()=>Protect(()=>{
+            var entry=draft();
+            if(entry==null)throw new IOException("Enter a name and location first.");
+            AppData.Open(new System.Collections.Generic.List<Entry>{entry},entry.id,"open",profile);
+        })));
+        readDraft=draft;
+        return body;
+    }
+
     void ShowIconLicense(){
         string text="";foreach(string resource in new[]{"Fluent.LICENSE","Fluent.NOTICE"})using(var stream=Assembly.GetExecutingAssembly().GetManifestResourceStream(resource)){if(stream==null)throw new IOException("The icon license resource is missing.");using(var reader=new StreamReader(stream))text+=reader.ReadToEnd()+"\r\n\r\n";}
         var root=new DockPanel{Margin=new Thickness(28)};var close=StandardAction(new Button{Content="Close",IsCancel=true,HorizontalAlignment=HorizontalAlignment.Right});close.Margin=new Thickness(0,18,0,0);DockPanel.SetDock(close,Dock.Bottom);root.Children.Add(close);root.Children.Add(new TextBox{Text=text,IsReadOnly=true,AcceptsReturn=true,TextWrapping=TextWrapping.Wrap,VerticalScrollBarVisibility=ScrollBarVisibility.Auto});presentDialog(Dialog("Interface icon license",720,620,root));

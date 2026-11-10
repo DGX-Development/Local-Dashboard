@@ -33,11 +33,52 @@ internal static partial class DashboardData {
         }
     }
     internal static void Atomic(string path,byte[] bytes){
-        Directory.CreateDirectory(Path.GetDirectoryName(path));string temp=path+"."+Guid.NewGuid().ToString("N")+".tmp";
+        string directory=Path.GetDirectoryName(path);
+        Directory.CreateDirectory(directory);
+        string temp=Path.Combine(directory,Guid.NewGuid().ToString("N")+".tmp");
         try{File.WriteAllBytes(temp,bytes);if(File.Exists(path))File.Replace(temp,path,null);else File.Move(temp,path);}
         finally{if(File.Exists(temp))File.Delete(temp);}
     }
     static string Text(byte[] bytes){using(var r=new StreamReader(new MemoryStream(bytes),Utf8,true))return r.ReadToEnd();}
+    internal static byte[] CatalogImportData(string source){
+        byte[] bytes=ReadBounded(source,16777216);string text=Text(bytes);object parsed;
+        try{parsed=AppData.Json.DeserializeObject(text);}catch(ArgumentException){return null;}
+        if(!(parsed is System.Collections.IList))return null;
+        if(bytes.Length>2097152)throw new IOException("Catalog exceeds its size limit.");
+        var rows=AppData.Json.Deserialize<List<Dictionary<string,object>>>(text);
+        ValidateCatalog(text,Path.GetDirectoryName(Path.GetFullPath(source)));
+        bool changed=false;
+        foreach(var row in rows){
+            foreach(Dictionary<string,object> target in (System.Collections.IList)row["targets"]){
+                object raw;if(target.TryGetValue("path",out raw)&&raw is string&&((string)raw).StartsWith("@app/",StringComparison.Ordinal)){
+                    target["path"]=Path.GetFullPath(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(source)),((string)raw).Substring(5).Replace('/',Path.DirectorySeparatorChar)));changed=true;
+                }
+            }
+        }
+        return changed?Utf8.GetBytes(AppData.Json.Serialize(rows)):bytes;
+    }
+    internal static int CatalogCount(byte[] bytes,string root){return ValidateCatalog(Text(bytes),root).Count;}
+    internal static List<Entry> ValidateCatalog(string json,string root){
+        List<Entry> entries;
+        try{entries=AppData.ReadEntries(json,root);}catch(Exception error){throw new IOException("This file does not contain a valid dashboard catalog.",error);}
+        if(entries.Count>1000||entries.Any(e=>e==null||String.IsNullOrWhiteSpace(e.id)||String.IsNullOrWhiteSpace(e.name)||e.targets==null||e.targets.Count>50))throw new IOException("Invalid catalog.");
+        foreach(var entry in entries)foreach(var target in entry.targets){
+            if(target==null||String.IsNullOrWhiteSpace(target.id))throw new IOException("Invalid destination.");
+            if(target.kind=="web"){Uri uri;if(!Uri.TryCreate(target.url,UriKind.Absolute,out uri)||!new[]{"http","https"}.Contains(uri.Scheme)||target.url.Any(Char.IsControl)||target.url.Contains("\""))throw new IOException("Invalid website destination.");}
+            else if(!new[]{"folder","document"}.Contains(target.kind)||String.IsNullOrWhiteSpace(target.path)||!Path.IsPathRooted(target.path)||target.path.Any(Char.IsControl)||target.path.Contains("\""))throw new IOException("Invalid local destination.");
+        }
+        return entries;
+    }
+    internal static string ImportCatalog(string profile,byte[] bytes,string expectedHash){
+        ValidateCatalog(Text(bytes),profile);string file=FileFor(profile,"catalog.json");
+        using(Lock(file)){
+            byte[] before=ReadBounded(file);if(Hash(before)!=expectedHash)throw new IOException("Dashboard links changed while the import was being reviewed. Nothing was imported; choose the file again.");
+            string backup=Path.Combine(profile,".local","catalog-before-import-"+DateTime.UtcNow.ToString("yyyyMMdd-HHmmss")+"-"+Guid.NewGuid().ToString("N")+".json");
+            GuardPath(backup);Atomic(backup,before);
+            if(Hash(ReadBounded(file))!=expectedHash)throw new IOException("Dashboard links changed before import. Nothing was imported; the previous copy was retained.");
+            Atomic(file,bytes);return backup;
+        }
+    }
     static IDisposable Lock(string path){return new Lease(new[]{path});}
     sealed class Lease:IDisposable{
         readonly List<Mutex> held=new List<Mutex>();
@@ -87,13 +128,7 @@ internal static partial class DashboardData {
         Directory.CreateDirectory(check);
         try{
             foreach(var item in files)if(item.Value!=null){string path=Path.Combine(check,Path.GetFileName(item.Key));File.WriteAllBytes(path,item.Value);}
-            var entries=AppData.ReadEntries(Text(files["catalog.json"]),profile);
-            if(entries.Count>1000||entries.Any(e=>e==null||String.IsNullOrWhiteSpace(e.id)||String.IsNullOrWhiteSpace(e.name)||e.targets==null||e.targets.Count>50))throw new IOException("Invalid catalog.");
-            foreach(var entry in entries)foreach(var target in entry.targets){
-                if(target==null||String.IsNullOrWhiteSpace(target.id))throw new IOException("Invalid destination.");
-                if(target.kind=="web"){Uri uri;if(!Uri.TryCreate(target.url,UriKind.Absolute,out uri)||!new[]{"http","https"}.Contains(uri.Scheme))throw new IOException("Invalid website destination.");}
-                else if(!new[]{"folder","document"}.Contains(target.kind)||String.IsNullOrWhiteSpace(target.path)||!Path.IsPathRooted(target.path)||target.path.Any(Char.IsControl)||target.path.Contains("\""))throw new IOException("Invalid local destination.");
-            }
+            var entries=ValidateCatalog(Text(files["catalog.json"]),profile);
             if(files[".local/work-list-source.json"]!=null)WorkSources.Validate(AppData.Json.Deserialize<WorkSourceChoice>(Text(files[".local/work-list-source.json"])));
             if(files.ContainsKey(".local/personal-tasks-source.json")&&files[".local/personal-tasks-source.json"]!=null)WorkSources.Validate(AppData.Json.Deserialize<WorkSourceChoice>(Text(files[".local/personal-tasks-source.json"])));
             if(files[".local/current-work.json"]!=null)new ChecklistStore(Path.Combine(check,"current-work.json"),entries).Read();
@@ -117,7 +152,17 @@ internal static partial class DashboardData {
             Atomic(destination,bytes);Validate(profile,Load(destination));
         }
     }
-    internal static DashboardBackup Load(string file){return AppData.Json.Deserialize<DashboardBackup>(Text(ReadBounded(file,16777216)));}
+    internal static DashboardBackup Load(string file){
+        string json=Text(ReadBounded(file,16777216));
+        object document;
+        try{document=AppData.Json.DeserializeObject(json);}
+        catch(ArgumentException error){throw new IOException("This file is not a readable Dashboard backup. Choose a JSON file created with File > Back up configuration. Your current data has not been changed.",error);}
+        if(document is object[]||document is System.Collections.ArrayList)
+            throw new IOException("This file contains dashboard links only (catalog.json), not a configuration backup. In your previous Dashboard copy, use File > Back up configuration, then select that backup here. Your current data has not been changed.");
+        if(!(document is Dictionary<string,object>))
+            throw new IOException("This file does not contain a Dashboard configuration backup. Choose a file created with File > Back up configuration. Your current data has not been changed.");
+        return AppData.Json.ConvertToType<DashboardBackup>(document);
+    }
     internal static void Restore(string profile,DashboardBackup bundle,Action<int> fault=null){
         if(bundle!=null&&bundle.schemaVersion>=3)throw new IOException("Use the restore-copies workflow for this backup.");
         Validate(profile,bundle);

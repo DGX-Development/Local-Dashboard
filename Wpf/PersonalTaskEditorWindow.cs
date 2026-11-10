@@ -37,6 +37,19 @@ internal sealed partial class WpfDashboard {
                 personalReadStatus=PersonalTextStore.Save(profile,snapshot,text);dialog.Close();RenderCompact(true);
             }catch(Exception error){feedback.Text=error.Message;feedback.BringIntoView();}
         }));save.Tag="personal-save";footer.Children.Add(save);
+        if(selected!=null)
+        {
+            var delete=StandardAction(ActionButton("Delete task",()=>{
+                if(MessageBox.Show(dialog,"Delete this task and its notes from the selected Personal tasks file?","Delete task",MessageBoxButton.YesNo,MessageBoxImage.Question)!=MessageBoxResult.Yes)return;
+                try
+                {
+                    personalReadStatus=PersonalTextStore.Save(profile,snapshot,snapshot.Text.Remove(selected.Start,selected.Length));
+                    dialog.Close();RenderCompact(true);
+                }
+                catch(Exception error){feedback.Text=error.Message;feedback.BringIntoView();}
+            }));
+            footer.Children.Add(delete);
+        }
         var cancel=StandardAction(ActionButton("Cancel",()=>dialog.Close()));cancel.IsCancel=true;footer.Children.Add(cancel);
         dialog.Loaded+=(s,e)=>(title??document).Focus();presentDialog(dialog);
     }

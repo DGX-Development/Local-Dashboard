@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using System.Collections.Generic;
@@ -29,7 +29,7 @@ internal sealed partial class WpfDashboard
         if(ShellTaskbarBrand.ProcessIdentity()!=shellBrand.AppId)throw new Exception("Process and window taskbar identities differ.");
         if(shellBrand.Read(hwnd,2)!=shellBrand.RelaunchCommand)throw new Exception("Shell relaunch command differs from the selected profile command.");
         if(shellBrand.Read(hwnd,5)!=shellBrand.AppId||shellBrand.Read(hwnd,3)!=shellBrand.IconResource)throw new Exception("Shell taskbar identity or icon resource differs.");
-        var iconPath=shellBrand.IconResource.Substring(0,shellBrand.IconResource.Length-2);if(!File.Exists(iconPath)||!iconPath.EndsWith("dashboard-v3-"+expected.R.ToString("X2")+expected.G.ToString("X2")+expected.B.ToString("X2")+".ico"))throw new Exception("Shell icon resource is missing or has wrong colour.");
+        var iconPath=shellBrand.IconResource.Substring(0,shellBrand.IconResource.Length-2);if(!File.Exists(iconPath)||Path.GetFileName(iconPath)!="dashboard-taskbar.ico"||DashboardData.Hash(File.ReadAllBytes(iconPath))!=DashboardData.Hash(DashboardBrand.IconBytes(expected)))throw new Exception("Stable shell icon resource is missing or has wrong colour bytes.");
         Console.WriteLine("Shell taskbar properties read back: "+shellBrand.AppId+" / "+shellBrand.IconResource+". Actual taskbar appearance still requires visual verification.");
         foreach(int kind in new[]{0,1}){
             var handle=SendMessage(hwnd,0x007F,new IntPtr(kind),IntPtr.Zero);if(handle==IntPtr.Zero)throw new Exception("Missing native window icon kind "+kind);
@@ -118,7 +118,7 @@ internal sealed partial class WpfDashboard
         Console.WriteLine("Experience checks passed: structured read-only Quinn list, refresh/missing source, inline add/edit/cancel, completion/Done edit/restore, stale edit rejection, toolbar geometry and all discovered scrollbar templates at compact/full sizes.");
     }
     void RefreshWorkAndWait(){
-        RefreshWorkSource();
+        RefreshWorkSource(personalTasksView);
         var frame=new DispatcherFrame();var until=DateTime.UtcNow.AddSeconds(10);
         var timer=new DispatcherTimer(DispatcherPriority.Background){Interval=TimeSpan.FromMilliseconds(20)};
         timer.Tick+=(s,e)=>{if(!workReadStatus.StartsWith("Reading selected")||DateTime.UtcNow>=until)frame.Continue=false;};
@@ -148,10 +148,14 @@ internal sealed partial class WpfDashboard
             toggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));window.UpdateLayout();
             if(Compact||System.Windows.Automation.AutomationProperties.GetName(toggle)!="Dashboard"||heading.Text!="Tasks")throw new Exception("Work navigation or return label failed.");
             if(new Rect(window.Left,window.Top,window.Width,window.Height)!=bounds)throw new Exception("Normal navigation resized or moved the window.");
-            var refresh=Find<WrapPanel>("CompactToolbar").Children.OfType<Button>().Single(b=>Equals(b.Tag,"work-refresh"));
-            var reference=CompactAction(new Button());
-            if(refresh.Height!=36||refresh.ActualHeight!=36)throw new Exception("Refresh differs from Move/Edit styling.");
-            ClickWork("Checklists");window.UpdateLayout();refresh=Find<WrapPanel>("CompactToolbar").Children.OfType<Button>().Single(b=>Equals(b.Tag,"work-refresh"));if(refresh.Height!=36)throw new Exception("Checklist Refresh is oversized.");
+            var modes=Find<StackPanel>("WorkNavigation").Children.OfType<WrapPanel>().First();
+            var refresh=modes.Children.OfType<Button>().Last();
+            if(System.Windows.Automation.AutomationProperties.GetName(refresh)!="Refresh"||refresh.Height!=36)
+                throw new Exception("Refresh is missing from the task selector row.");
+            ClickWork("Checklists");window.UpdateLayout();
+            modes=Find<StackPanel>("WorkNavigation").Children.OfType<WrapPanel>().First();
+            if(modes.Children.OfType<Button>().Any(button=>System.Windows.Automation.AutomationProperties.GetName(button)=="Refresh"))
+                throw new Exception("Checklists shows a task-file Refresh button.");
             ClickWork("Agent tasks");toggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));window.UpdateLayout();
             if(Compact||System.Windows.Automation.AutomationProperties.GetName(toggle)!="Tasks")throw new Exception("Dashboard return failed.");
         }
@@ -193,7 +197,7 @@ internal sealed partial class WpfDashboard
         var menu=Find<Menu>("AppMenu");
         if(menu.Style==null||menu.Background==null)throw new InvalidOperationException("Forge menu style did not load.");
         CaptureShell(profile,"directory.png",1280,860);
-        VerifyDialog(EditCatalog,"Edit dashboard links","edit.png",dialog=>{
+        VerifyDialog(EditCatalog,"Edit Dashboard","edit.png",dialog=>{
             var sectionPicker=Visuals<ComboBox>(dialog).Single();
             if((string)sectionPicker.SelectedValue!="software")throw new InvalidOperationException("Edit lost section context.");
             sectionPicker.SelectedValue="all";
@@ -222,9 +226,9 @@ internal sealed partial class WpfDashboard
         if(DashboardAccent.Selected!=original||File.Exists(StatePath("window-preferences.json")))
             throw new InvalidOperationException("Cancel persisted a preview.");
         if(File.ReadAllText(catalog)!=before)throw new InvalidOperationException("Read-only fixture unexpectedly changed.");
-        VerifyDialog(EditCatalog,"Edit dashboard links","edit-save.png",dialog=>{
+        VerifyDialog(EditCatalog,"Edit Dashboard","edit-save.png",dialog=>{
             var picker=Visuals<ComboBox>(dialog).Single();
-            var input=Visuals<TextBox>(dialog).First(t=>System.Windows.Automation.AutomationProperties.GetName(t)=="Display name");
+            var input=Visuals<TextBox>(dialog).First(t=>System.Windows.Automation.AutomationProperties.GetName(t)=="Name");
             var entryList=Visuals<ListBox>(dialog).Single(list=>System.Windows.Automation.AutomationProperties.GetName(list)=="Dashboard entries");
             var editedEntry=entryList.SelectedItem;
             input.Text="Edited software fixture";
@@ -239,25 +243,19 @@ internal sealed partial class WpfDashboard
         if(!saved.Contains("Edited software fixture")||!saved.Contains("Edited workflow fixture")||
            !saved.Contains("futureCatalogField"))
             throw new InvalidOperationException("Cross-section save or unknown-field preservation failed.");
-        var navigation=Find<StackPanel>("Navigation");
-        BeginMove();
-        var first=layout.items[0].id;
-        var firstEntry=(string)((Border)rows.Children[0]).Tag;
-        Reorder(navigation,first,1);
-        Reorder(rows,firstEntry,1);
-        if(layout.items[1].id!=first||layout.orders[section][1]!=firstEntry)
-            throw new InvalidOperationException("In-place reorder did not update both draft lists.");
-        FinishMove(false);
-        if(Moving||layout.items[0].id!=first||rows.Children.OfType<Border>().Any(row=>row.AllowDrop))
-            throw new InvalidOperationException("Cancel did not restore the locked layout.");
-        BeginMove();
-        Reorder(navigation,first,1);
-        Reorder(rows,firstEntry,1);
-        Select("workflows");
-        FinishMove(true);
+        var initialLayout=sidebarStore.Read().Layout;
+        string first=initialLayout.items[0].id;
+        string firstEntry=(string)((Border)rows.Children[0]).Tag;
+        VerifyDialog(EditCatalog,"Edit Dashboard","editor-reorder-cancel.png",dialog=>VerifyEditorReorder(dialog,first,firstEntry));
+        if(sidebarStore.Read().Layout.items[0].id!=first||!Equals(((Border)rows.Children[0]).Tag,firstEntry))
+            throw new InvalidOperationException("Cancel changed the Dashboard order.");
+        VerifyDialog(EditCatalog,"Edit Dashboard","editor-reorder-save.png",dialog=>{
+            VerifyEditorReorder(dialog,first,firstEntry);
+            Click(dialog,"Save");
+        });
         var savedLayout=sidebarStore.Read().Layout;
-        if(Moving||savedLayout.items[1].id!=first||savedLayout.orders["software"][1]!=firstEntry)
-            throw new InvalidOperationException("Save lost draft order across section switches.");
+        if(savedLayout.items[1].id!=first||savedLayout.orders["software"][1]!=firstEntry)
+            throw new InvalidOperationException("Save lost category or link order.");
         VerifyDialog(Settings,"Local Dashboard settings","settings-save.png",dialog=>{
             Visuals<TextBox>(dialog).Single(t=>System.Windows.Automation.AutomationProperties.GetName(t)=="Accent hex color").Text="#E8B8CD";
             WaitForAppearancePreview();

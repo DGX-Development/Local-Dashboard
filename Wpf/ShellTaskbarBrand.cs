@@ -7,7 +7,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Reflection;
 
-// Window-scoped, documented shell identity/relaunch properties. No registry edits, pinning or cache flush.
+// Stable profile identity and icon resource, with a targeted refresh of matching shortcut images.
 internal sealed class ShellTaskbarBrand {
     [StructLayout(LayoutKind.Sequential)] struct PropertyKey { public Guid format;public uint id;internal PropertyKey(uint id){format=new Guid("9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3");this.id=id;} }
     [StructLayout(LayoutKind.Explicit,Size=24)] struct PropVariant { [FieldOffset(0)] public ushort type;[FieldOffset(8)] public IntPtr pointer;
@@ -21,14 +21,12 @@ internal sealed class ShellTaskbarBrand {
     }
     [DllImport("shell32.dll",PreserveSig=true)] static extern int SHGetPropertyStoreForWindow(IntPtr window,ref Guid iid,[MarshalAs(UnmanagedType.Interface)]out IPropertyStore store);
     [DllImport("ole32.dll")] static extern int PropVariantClear(ref PropVariant value);
-    [ComImport,Guid("56FDF342-FD6D-11D0-958A-006097C9A090"),InterfaceType(ComInterfaceType.InterfaceIsIUnknown)] interface ITaskbarList {
-        void HrInit();void AddTab(IntPtr window);void DeleteTab(IntPtr window);void ActivateTab(IntPtr window);void SetActiveAlt(IntPtr window);
-    }
-    [ComImport,Guid("56FDF344-FD6D-11D0-958A-006097C9A090")] class TaskbarListObject {}
     readonly string profile,command,displayName,executable,arguments;
     string relaunchCommand;
     internal readonly string AppId;
     internal string IconResource {get;private set;}
+    internal string RefreshKey {get;private set;}
+    string nativeIconPath;
     [DllImport("shell32.dll",CharSet=CharSet.Unicode,PreserveSig=true)] static extern int SetCurrentProcessExplicitAppUserModelID(string appId);
     [DllImport("shell32.dll",PreserveSig=true)] static extern int GetCurrentProcessExplicitAppUserModelID(out IntPtr appId);
     static string Identity(string profile,bool review){using(var sha=SHA256.Create())return "DGX.LocalDashboard."+(review?"Review.":"App.")+BitConverter.ToString(sha.ComputeHash(Encoding.UTF8.GetBytes(Path.GetFullPath(profile).ToUpperInvariant()))).Replace("-","").Substring(0,24);}
@@ -57,6 +55,7 @@ internal sealed class ShellTaskbarBrand {
                 type.InvokeMember("Arguments",BindingFlags.SetProperty,null,link,new object[]{arguments});
                 type.InvokeMember("WorkingDirectory",BindingFlags.SetProperty,null,link,new object[]{Path.GetDirectoryName(executable)});
                 type.InvokeMember("Description",BindingFlags.SetProperty,null,link,new object[]{"Local Dashboard profile"});
+                if(IconResource!=null)type.InvokeMember("IconLocation",BindingFlags.SetProperty,null,link,new object[]{IconResource});
                 type.InvokeMember("Save",BindingFlags.InvokeMethod,null,link,null);
                 return relaunchCommand="\""+path+"\"";
             }finally{if(link!=null)Marshal.ReleaseComObject(link);if(shell!=null)Marshal.ReleaseComObject(shell);}
@@ -67,16 +66,19 @@ internal sealed class ShellTaskbarBrand {
         string path=Path.Combine(directory,"dashboard-v3-"+color.R.ToString("X2")+color.G.ToString("X2")+color.B.ToString("X2")+".ico");
         byte[] bytes=DashboardBrand.IconBytes(color);
         if(!File.Exists(path)||DashboardData.Hash(File.ReadAllBytes(path))!=DashboardData.Hash(bytes))DashboardData.Atomic(path,bytes);
-        IconResource=path+",0";
+        nativeIconPath=path;RefreshKey=path;
+        string taskbarPath=Path.Combine(directory,"dashboard-taskbar.ico");
+        if(!File.Exists(taskbarPath)||DashboardData.Hash(File.ReadAllBytes(taskbarPath))!=DashboardData.Hash(bytes))DashboardData.Atomic(taskbarPath,bytes);
+        IconResource=taskbarPath+",0";
     }
     [DllImport("user32.dll")] static extern IntPtr SendMessage(IntPtr hwnd,uint message,IntPtr wParam,IntPtr lParam);
     [DllImport("user32.dll")] static extern uint GetDpiForWindow(IntPtr hwnd);
     System.Drawing.Icon nativeSmall,nativeLarge;string nativeKey;
     void ApplyNative(IntPtr handle){
         uint dpi=96;try{dpi=GetDpiForWindow(handle);if(dpi==0)dpi=96;}catch(EntryPointNotFoundException){}
-        int small=(int)Math.Round(16*dpi/96.0),large=(int)Math.Round(32*dpi/96.0);string key=IconResource+"@"+dpi;
+        int small=(int)Math.Round(16*dpi/96.0),large=(int)Math.Round(32*dpi/96.0);string key=RefreshKey+"@"+dpi;
         if(nativeKey!=key){
-            string path=IconResource.Substring(0,IconResource.Length-2);
+            string path=nativeIconPath;
             var nextSmall=new System.Drawing.Icon(path,small,small);var nextLarge=new System.Drawing.Icon(path,large,large);
             SendMessage(handle,0x0080,IntPtr.Zero,nextSmall.Handle);SendMessage(handle,0x0080,new IntPtr(1),nextLarge.Handle);
             if(nativeSmall!=null)nativeSmall.Dispose();if(nativeLarge!=null)nativeLarge.Dispose();
@@ -94,13 +96,9 @@ internal sealed class ShellTaskbarBrand {
     }
     internal void RefreshTaskbar(IntPtr handle){
         if(handle==IntPtr.Zero||IconResource==null)return;
-        var taskbar=(ITaskbarList)new TaskbarListObject();
-        try{
-            taskbar.HrInit();taskbar.DeleteTab(handle);
-            try{Apply(handle);}
-            finally{taskbar.AddTab(handle);}
-        }finally{Marshal.ReleaseComObject(taskbar);}
+        Apply(handle);RefreshShortcuts();
     }
+    internal void RefreshShortcuts(){if(IconResource!=null)TaskbarShortcutIcons.Refresh(executable,arguments,AppId,IconResource.Substring(0,IconResource.Length-2));}
     internal string Read(IntPtr handle,uint id){var store=Open(handle);try{var key=new PropertyKey(id);PropVariant value;Marshal.ThrowExceptionForHR(store.GetValue(ref key,out value));try{return value.StringValue;}finally{PropVariantClear(ref value);}}finally{Marshal.ReleaseComObject(store);}}
     internal void Dispose(){if(nativeSmall!=null)nativeSmall.Dispose();if(nativeLarge!=null)nativeLarge.Dispose();nativeSmall=nativeLarge=null;nativeKey=null;}
     internal void Clear(IntPtr handle){if(handle==IntPtr.Zero)return;var store=Open(handle);try{foreach(uint id in new uint[]{5,3,4,2})Set(store,id,null);}finally{Marshal.ReleaseComObject(store);}}

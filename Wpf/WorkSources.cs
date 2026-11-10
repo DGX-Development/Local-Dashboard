@@ -21,11 +21,16 @@ internal sealed class WorkSourceCache {
     public string revision {get;set;}
     public List<SourceTaskRecord> records {get;set;}
 }
+internal sealed class TaskSourceNotSelectedException : IOException {
+    internal TaskSourceNotSelectedException(bool personal):base("Choose a "+(personal?"Personal tasks":"Agent tasks")+" file in Settings > Tasks."){}
+}
 internal static class WorkSources {
     static readonly UTF8Encoding Utf8=new UTF8Encoding(false,true);
     internal static string Config(string profile,bool personal=false){return Path.Combine(profile,".local",personal?"personal-tasks-source.json":"work-list-source.json");}
     internal static string Token(string profile,bool personal=false){return File.Exists(Config(profile,personal))?DashboardData.Hash(DashboardData.ReadBounded(Config(profile,personal),16384)):null;}
+    static bool Disconnected(WorkSourceChoice choice){return choice!=null&&choice.schemaVersion==1&&choice.kind=="none"&&String.IsNullOrEmpty(choice.path);}
     internal static void Validate(WorkSourceChoice choice){
+        if(Disconnected(choice))return;
         if(choice!=null&&choice.schemaVersion==1&&CloudSources.IsCloud(choice.kind)){CloudSources.Validate(choice);return;}if(choice==null||choice.schemaVersion!=1||!new[]{"local","synced","network"}.Contains(choice.kind)||String.IsNullOrWhiteSpace(choice.path))throw new IOException("Choose a supported file source.");
         string p=choice.path;
         if(p.Any(Char.IsControl)||p.Contains("\"")||p.StartsWith(@"\\?\")||p.StartsWith(@"\\.\")||!Path.IsPathRooted(p)||(!p.StartsWith(@"\\")&&(p.Length<3||p[1]!=':'||p[2]!='\\')))throw new IOException("Enter a full Windows file path or UNC network path.");
@@ -34,19 +39,20 @@ internal static class WorkSources {
         choice.path=Path.GetFullPath(p);
     }
     internal static WorkSourceChoice Read(string profile,bool personal=false){
-        if(File.Exists(Config(profile,personal))){var c=AppData.Json.Deserialize<WorkSourceChoice>(Utf8.GetString(DashboardData.ReadBounded(Config(profile,personal),16384)));Validate(c);return c;}
-        if(personal)throw new IOException("Choose your Personal tasks text file in Settings > Tasks.");
+        if(File.Exists(Config(profile,personal))){var c=AppData.Json.Deserialize<WorkSourceChoice>(Utf8.GetString(DashboardData.ReadBounded(Config(profile,personal),16384)));Validate(c);if(Disconnected(c))throw new TaskSourceNotSelectedException(personal);return c;}
+        if(personal)throw new TaskSourceNotSelectedException(true);
         string path=DashboardData.WorkPath(profile),legacy=Path.Combine(profile,".local","current-work-source.json");
         if(!File.Exists(path)){
             path=null;
             if(File.Exists(legacy)){var c=AppData.Json.Deserialize<AssistantWorkSource>(File.ReadAllText(legacy));if(c==null||c.schemaVersion!=1)throw new IOException("Invalid existing source configuration.");path=c.path;}
         }
-        if(String.IsNullOrWhiteSpace(path))throw new IOException("Choose your Agent tasks text file in Settings > Tasks.");
+        if(String.IsNullOrWhiteSpace(path))throw new TaskSourceNotSelectedException(false);
         var result=new WorkSourceChoice{schemaVersion=1,kind=path!=null&&path.StartsWith(@"\\")?"network":"local",path=path};Validate(result);return result;
     }
     internal static string Identity(WorkSourceChoice choice){Validate(choice);return CloudSources.IsCloud(choice.kind)?choice.kind+":"+choice.path:choice.path.ToUpperInvariant();}
     internal static string CachePath(string profile,WorkSourceChoice choice){return Path.Combine(profile,".local","work-list-cache",DashboardData.Hash(Utf8.GetBytes(Identity(choice)))+".json");}
     internal static void Save(string profile,WorkSourceChoice choice,string expected,bool personal=false){
+        if(choice==null)choice=new WorkSourceChoice{schemaVersion=1,kind="none"};
         Validate(choice);string config=Config(profile,personal);
         using(var mutex=new Mutex(false,ChecklistStore.LockName(config))){bool locked=false;try{
             try{locked=mutex.WaitOne(0);}catch(AbandonedMutexException){locked=true;}

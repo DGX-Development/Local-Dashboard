@@ -1,5 +1,8 @@
-EXAMPLE DOCUMENT
+SAMPLE PROJECT BRIEF
 
-This is a generic sample document supplied with Local Dashboard.
-Use Edit below the sidebar to choose a document of your own.
-Agent tasks and Personal tasks are separate lists selected in Settings > Tasks.
+Project: Plan a weekend garden
+Goal: Decide what to plant and where.
+Next steps: Measure the bed, sketch the layout, and make a supplies list.
+
+Keep a file like this one click away. In Dashboard, choose Edit, select a
+category, choose Add link, set Opens to Document, and browse to your file.

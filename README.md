@@ -4,15 +4,15 @@
 
 Local Dashboard is a Windows app for opening your project folders, documents and websites, and keeping task lists together in one place.
 
-**Status:** In active development. The latest packaged release for repository members is **2.2.1**.
+**Status:** In active development. The latest packaged release for repository members is **2.2.2**.
 
-## Install 2.2.1
+## Install 2.2.2
 
-Repository access is required for the [v2.2.1 release](https://github.com/DGX-Development/Local-Dashboard/releases/tag/v2.2.1).
+Repository access is required for the [v2.2.2 release](https://github.com/DGX-Development/Local-Dashboard/releases/tag/v2.2.2).
 
-- [Windows x64 installer](https://github.com/DGX-Development/Local-Dashboard/releases/download/v2.2.1/LocalDashboard-2.2.1-Setup.exe)
-- [Portable ZIP](https://github.com/DGX-Development/Local-Dashboard/releases/download/v2.2.1/LocalDashboard-2.2.1-Portable.zip)
-- [SHA-256 checksums](https://github.com/DGX-Development/Local-Dashboard/releases/download/v2.2.1/SHA256SUMS.txt)
+- [Windows x64 installer](https://github.com/DGX-Development/Local-Dashboard/releases/download/v2.2.2/LocalDashboard-2.2.2-Setup.exe)
+- [Portable ZIP](https://github.com/DGX-Development/Local-Dashboard/releases/download/v2.2.2/LocalDashboard-2.2.2-Portable.zip)
+- [SHA-256 checksums](https://github.com/DGX-Development/Local-Dashboard/releases/download/v2.2.2/SHA256SUMS.txt)
 
 1. Close any older Dashboard copy using **File > Exit**, including copies in the system tray.
 2. Run Setup. It installs for your Windows account under `%LOCALAPPDATA%\Programs\Local Dashboard` by default. A desktop shortcut is optional.
@@ -43,9 +43,9 @@ Local Dashboard 2.2.1 showing the same sample workspace in light and dark appear
 - Provides compact view, on-top behavior, light/dark appearance, accent colors and window preferences.
 - Includes configuration backup/restore, setup, built-in Help and a copyable issue report.
 
-Choose task files in **Settings > Tasks**. A local file in a folder already synchronized by another service works like any local file. Direct Google Drive, Dropbox and OneDrive sign-in is **coming soon**. There is no automatic update service.
+Choose task files in **Settings > Tasks**. Newly selected files load after **Save**. Use **Refresh** beside **Checklists** to reread an externally edited file. Files in locally synchronized folders work like other local files. Direct Google Drive, Dropbox and OneDrive sign-in is planned. There is no automatic update service.
 
-New dashboard entries can be configured in `catalog.json`; **Edit dashboard links** edits existing entries and destinations. The setup walkthrough explains the dashboard but does not create new catalog entries for you.
+**Edit Dashboard** opens to the category you are viewing. Add, edit, remove or reorder categories and links in one editor. Drag a row by its grip, or focus the grip and press **Ctrl+Up** or **Ctrl+Down**. Save applies the draft. Use the built-in icon picker or browse for a local image. The setup walkthrough links to an optional AI setup guide.
 
 ## Your data
 
@@ -63,13 +63,13 @@ The current application is WPF. Use Windows PowerShell or PowerShell 7, the Wind
 & '.\Build-Installer.ps1' -Compiler 'C:\path\to\Inno Setup\ISCC.exe'
 ```
 
-The script builds the app, creates an exact eight-file payload with a generic starter catalog, and produces Setup, a portable ZIP and checksums under `.dev\Review\Dashboard21\Navigation219\Release221`. It refuses to overwrite an existing payload; use `-OutputDirectory` with a fresh directory under `.dev\Review` for another build. Local profiles, task files and private development notes are excluded.
+The script builds the app, creates an exact eight-file payload with a generic starter catalog, and produces Setup, a portable ZIP and checksums under `.dev\Review\Dashboard21\Navigation219\Release222`. It refuses to overwrite an existing payload; use `-OutputDirectory` with a fresh directory under `.dev\Review` for another build. Local profiles, task files and private development notes are excluded.
 
-`Wpf/Build Wpf.ps1` is the explicit-source application build. `Build Dashboard.ps1`, the browser assets and Node scripts remain legacy sources; they are not the 2.2.1 release build path.
+`Wpf/Build Wpf.ps1` is the explicit-source application build. `Build Dashboard.ps1`, the browser assets and Node scripts remain legacy sources; they are not the 2.2.2 release build path.
 
 ## Verification and known limits
 
-The 2.2.1 first-run check verified the generic sidebar, all three example targets, empty document selections, empty local checklist, Setup Finish, preserved saved labels/sources and unchanged catalog after a no-op edit. The rendered dashboard and setup pages were inspected offscreen. Earlier focused checks covered the task presentation, editing behavior, editor initial selection, shared controls, menus, About and separate-process instance guard. In 2.2.0, the packaged app's read diagnostic and isolated installation, upgrade and uninstall passed, preserving disposable data. The 2.2.1 installer correctly refused installation while Dashboard was running; a complete install/upgrade/uninstall cycle was not repeated for 2.2.1. A full accessibility/DPI matrix and the interactive installer wizard were not tested for this release.
+The 2.2.2 offscreen checks cover setup, dashboard editing and reordering, task selections, backup handling, and the View menu pin. The light and dark screenshots above show the 2.2.1 baseline. Live pointer dragging and a full accessibility and DPI review remain pending.
 
 See [CHANGELOG.md](CHANGELOG.md) for the release changes. Use **Help > Help and user guide** for everyday use, or **Help > Report an issue** to copy a report for [DGX Development support](https://dgx.digitalguy.me/contact.html).
 

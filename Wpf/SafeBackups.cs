@@ -144,7 +144,52 @@ internal static partial class DashboardData {
             string file=SafeFile(profile,name);string valueNow=File.Exists(file)?Convert.ToBase64String(ReadBounded(file)):null;
             if(valueNow!=journal.before[name]&&valueNow!=journal.after[name])throw new IOException("Configuration changed after an interrupted restore. Files were kept for recovery; no list was overwritten.");
         }
-        foreach(string name in SafeNames)WriteOptional(SafeFile(profile,name),journal.before[name]==null?null:Convert.FromBase64String(journal.before[name]));File.Delete(pending);
+        foreach(string name in SafeNames)
+        {
+            string file=SafeFile(profile,name);
+            string current=File.Exists(file)?Convert.ToBase64String(ReadBounded(file)):null;
+            if(current!=journal.before[name])WriteOptional(file,journal.before[name]==null?null:Convert.FromBase64String(journal.before[name]));
+        }
+        File.Delete(pending);
+    }
+    internal static void SaveDashboardEdit(string profile,CatalogDraft catalog,SidebarStore sidebar,SidebarSnapshot snapshot,SidebarLayout layout,Action<int> fault=null)
+    {
+        using(new Lease(SafeNames.Select(name=>SafeFile(profile,name))))
+        {
+            RecoverSafeCore(profile);
+            var before=SafeNames.ToDictionary(name=>name,name=>{
+                string file=SafeFile(profile,name);
+                return File.Exists(file)?Convert.ToBase64String(ReadBounded(file)):null;
+            });
+            var after=new Dictionary<string,string>(before);
+            string links=catalog.Prepare();
+            if(links!=null)
+            {
+                byte[] bytes=Utf8.GetBytes(links);
+                if(bytes.Length>2097152)throw new IOException("Catalog exceeds its size limit.");
+                after["catalog.json"]=Convert.ToBase64String(bytes);
+            }
+            if(layout!=null)after[".local/sidebar-layout.json"]=Convert.ToBase64String(Utf8.GetBytes(sidebar.Prepare(snapshot,layout)));
+            else if(sidebar.Read().Token!=snapshot.Token)throw new IOException("Categories changed elsewhere. Reopen Edit Dashboard.");
+            var changed=SafeNames.Where(name=>after[name]!=before[name]).ToList();
+            if(changed.Count==0)return;
+            string pending=SafeFile(profile,".local/safe-restore-pending.json");
+            Atomic(pending,Utf8.GetBytes(AppData.Json.Serialize(new SafeRestoreJournal{schemaVersion=1,before=before,after=after})));
+            try
+            {
+                int written=0;
+                foreach(string name in changed)
+                {
+                    string file=SafeFile(profile,name);
+                    string current=File.Exists(file)?Convert.ToBase64String(ReadBounded(file)):null;
+                    if(current!=before[name])throw new IOException("Dashboard data changed during Save. Reopen Edit Dashboard.");
+                    Atomic(file,Convert.FromBase64String(after[name]));
+                    if(fault!=null)fault(++written);
+                }
+                File.Delete(pending);
+            }
+            catch{RecoverSafeCore(profile);throw;}
+        }
     }
     internal static void RecoverSafe(string profile){using(new Lease(SafeNames.Select(n=>SafeFile(profile,n))))RecoverSafeCore(profile);}
 }

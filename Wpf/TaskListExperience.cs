@@ -52,25 +52,6 @@ internal sealed partial class WpfDashboard {
         }
         if(deferred.Children.Count>0)target.Children.Add(new Expander{Header="Deferred work · Do not start",Content=deferred,IsExpanded=false,Margin=new Thickness(0,12,0,12)});
     }
-    void AddPersonalSource(StackPanel body,out Action validate,out Action save){
-        string expected=WorkSources.Token(profile,true);WorkSourceChoice selected=null;
-        try{selected=WorkSources.Read(profile,true);}catch(IOException){}
-        string original=selected==null?"":selected.path;
-        body.Children.Add(WorkRule());body.Children.Add(WorkText("Personal tasks",true));
-        body.Children.Add(WorkText("Your personal text file. Edit it here in Personal tasks, or in your usual editor. Both use this same file."));
-        body.Children.Add(WorkText("List location"));
-        var field=new TextBox{Text=original,IsReadOnly=true,Margin=new Thickness(0,0,8,0)};
-        System.Windows.Automation.AutomationProperties.SetName(field,"Personal tasks list location");
-        var row=new DockPanel{Margin=new Thickness(0,0,0,8)};
-        var choose=StandardAction(ActionButton("Choose...",()=>{
-            var picker=new OpenFileDialog{Title="Choose Personal tasks file",Filter="Text and Markdown|*.txt;*.md",CheckFileExists=true};
-            if(picker.ShowDialog(Window.GetWindow(body)??window)==true)field.Text=picker.FileName;
-        }));DockPanel.SetDock(choose,Dock.Right);row.Children.Add(choose);row.Children.Add(field);body.Children.Add(row);
-        body.Children.Add(WorkText("An existing local, synced or network file works. This is separate from Checklists below."));
-        Func<WorkSourceChoice> choice=()=>new WorkSourceChoice{schemaVersion=1,kind=field.Text.StartsWith(@"\\")?"network":"local",path=field.Text};
-        validate=()=>{if(field.Text==original)return;WorkSources.Validate(choice());if(WorkSources.Token(profile,true)!=expected)throw new IOException("Personal tasks location changed. Reopen Settings.");};
-        save=()=>{if(field.Text==original)return;WorkSources.Save(profile,choice(),expected,true);personalReadStatus="Personal tasks location saved. Select Refresh to load it.";};
-    }
     void RenderSavedTaskList(bool personal){
         string status=personal?personalReadStatus:workReadStatus;
         if(!String.IsNullOrWhiteSpace(status))rows.Children.Add(WorkText(status));
@@ -79,13 +60,14 @@ internal sealed partial class WpfDashboard {
             if(personal&&!CloudSources.IsCloud(source.kind)){
                 var actions=new WrapPanel();actions.Children.Add(SourceAction("Add task",()=>Protect(()=>EditPersonalTask(null,null))));actions.Children.Add(SourceAction("Edit document",()=>Protect(()=>EditPersonalTask(null,null,true))));rows.Children.Add(actions);
             }
-            if(cache==null){rows.Children.Add(WorkText("This list has not been loaded yet.",true));rows.Children.Add(WorkText("Choose its file in Settings > Tasks, then select Refresh."));rows.Children.Add(TaskDetails("Source details",source.path));return;}
+            if(cache==null){if(String.IsNullOrWhiteSpace(status))rows.Children.Add(WorkText("A file is selected. Choose Refresh to load it."));rows.Children.Add(TaskDetails("Source details",source.path));return;}
             if(String.IsNullOrWhiteSpace(cache.text))rows.Children.Add(WorkText("This text file is empty."));else RenderReadableTaskText(cache.text,rows,personal&&!CloudSources.IsCloud(source.kind));
             var sourceDetails=new StackPanel();sourceDetails.Children.Add(WorkText("File: "+source.path));
             sourceDetails.Children.Add(WorkText("Read "+DateTimeOffset.Parse(cache.refreshedAt).ToLocalTime().ToString("g")));
             sourceDetails.Children.Add(WorkText("The complete document below keeps all headings, instructions and additional text."));
             sourceDetails.Children.Add(new TextBox{Text=cache.text,IsReadOnly=true,TextWrapping=TextWrapping.Wrap,AcceptsReturn=true});
             rows.Children.Add(new Expander{Header="Source and full document",IsExpanded=false,Content=sourceDetails,Margin=new Thickness(0,12,0,0)});
-        }catch(Exception error){rows.Children.Add(WorkText((personal?"Personal tasks":"Agent tasks")+" unavailable. "+error.Message));}
+        }catch(TaskSourceNotSelectedException error){rows.Children.Add(WorkText(error.Message));}
+        catch(Exception error){rows.Children.Add(WorkText((personal?"Personal tasks":"Agent tasks")+" unavailable. "+error.Message));}
     }
 }

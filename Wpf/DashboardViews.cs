@@ -22,7 +22,7 @@ internal sealed partial class WpfDashboard
     string lastReportView;
     bool exitRequested,doneView; bool assistantWorkView=true;
     bool compactView; Rect fullBounds; WindowState fullState;
-    string requestedTaskbarResource; bool taskbarRefreshQueued,refreshingTaskbar;
+    TaskbarRefreshQueue taskbarUpdates;
     Size compactSize=new Size(580,760);
     System.Windows.Threading.DispatcherTimer refreshTimer;
 
@@ -33,15 +33,22 @@ internal sealed partial class WpfDashboard
         sidebarStore=new SidebarStore(StatePath("sidebar-layout.json"));
         preferenceStore=new WindowPreferenceStore(StatePath("window-preferences.json"),fixture?(IStartupEntry)new MemoryStartupEntry():new DashboardStartup());
         LoadCompactBounds();
+        LoadFullBounds();
         string pinFile=StatePath("pins.json");
         if(File.Exists(pinFile))pins.UnionWith(AppData.Json.Deserialize<string[]>(File.ReadAllText(pinFile)));
         shellBrand=new ShellTaskbarBrand(profile,fixture,System.Windows.Forms.Application.ExecutablePath);
+        taskbarUpdates=new TaskbarRefreshQueue(
+            action=>{window.Dispatcher.BeginInvoke(action,System.Windows.Threading.DispatcherPriority.ContextIdle);},
+            ()=>refreshShell&&window.IsVisible&&window.ShowInTaskbar,
+            ()=>shellBrand.RefreshKey,
+            ()=>UpdateTaskbarSafely(()=>shellBrand.RefreshTaskbar(new WindowInteropHelper(window).Handle)));
         window.SourceInitialized+=(s,e)=>UpdateTaskbarSafely(()=>shellBrand.Apply(new WindowInteropHelper(window).Handle));
-        window.Loaded+=(s,e)=>QueueTaskbarRefresh();
+        window.Loaded+=(s,e)=>{if(!verifying){FitToWorkArea();if(loadedFullPlacement&&!Compact)window.WindowState=fullState;}QueueTaskbarRefresh();};
         Microsoft.Win32.UserPreferenceChangedEventHandler themeChanged=(s,e)=>window.Dispatcher.BeginInvoke(new Action(()=>{DashboardTheme.Apply(appearancePreviewTheme??preferenceStore.Value.theme);ApplyAccent(appearancePreviewTheme==null?SavedAccent():DashboardAccent.Selected);RefreshGlyphs();foreach(Window open in Application.Current.Windows)ThemeWindow(open,null);}));Microsoft.Win32.SystemEvents.UserPreferenceChanged+=themeChanged;window.Closed+=(s,e)=>Microsoft.Win32.SystemEvents.UserPreferenceChanged-=themeChanged;
         window.Activated+=(s,e)=>QueueTaskbarRefresh();
         DashboardTheme.Apply(preferenceStore.Value.theme);RefreshGlyphs();
         ApplyAccent(SavedAccent());
+        if(refreshShell)UpdateTaskbarSafely(()=>shellBrand.RefreshShortcuts());
         tray=new System.Windows.Forms.NotifyIcon{Text="Local Dashboard",Icon=trayIcon};
         tray.DoubleClick+=(s,e)=>window.Dispatcher.BeginInvoke(new Action(Restore));
         var menu=new System.Windows.Forms.ContextMenuStrip{BackColor=System.Drawing.Color.FromArgb(43,43,43),ForeColor=System.Drawing.Color.FromArgb(242,242,242),Font=new System.Drawing.Font("Segoe UI",10f),Padding=new System.Windows.Forms.Padding(6),Renderer=new DashboardMenuRenderer()};
@@ -49,14 +56,8 @@ internal sealed partial class WpfDashboard
         menu.Items.Add("Exit",null,(s,e)=>window.Dispatcher.BeginInvoke(new Action(Exit)));
         tray.ContextMenuStrip=menu;
         window.Closing+=(s,e)=>{
-            if(Moving)
-            {
-                e.Cancel=true;
-                MessageBox.Show(window,"Save or cancel the current move before closing.","Local Dashboard");
-                return;
-            }
             if(!exitRequested&&preferenceStore.Value.closeToTray){e.Cancel=true;Hide();}
-            if(!e.Cancel)SaveCompactBounds();
+            if(!e.Cancel)SaveWindowBounds();
             if(!e.Cancel&&shellBrand!=null)UpdateTaskbarSafely(()=>shellBrand.Clear(new WindowInteropHelper(window).Handle));
         };
         window.StateChanged+=(s,e)=>{if(window.WindowState==WindowState.Minimized&&preferenceStore.Value.minimizeToTray)Hide();};
@@ -96,30 +97,20 @@ internal sealed partial class WpfDashboard
         QueueTaskbarRefresh();
         if(tray!=null)tray.Icon=trayIcon;
         if(old!=null)old.Dispose();
-        foreach(Window owned in Application.Current.Windows.Cast<Window>().Where(w=>w.Owner==window)){owned.Icon=window.Icon;owned.Resources["DashboardAccent"]=window.Resources["DashboardAccent"];ThemeWindow(owned,null);}
+        foreach(Window owned in Application.Current.Windows.Cast<Window>().Where(w=>w.Owner==window)){owned.Icon=DialogTitleIcon(owned);owned.Resources["DashboardAccent"]=window.Resources["DashboardAccent"];ThemeWindow(owned,null);}
         if(entries!=null&&section!="work"&&section!="reports")Render();
     }
     void QueueTaskbarRefresh(bool force=false)
     {
-        if(taskbarRefreshQueued||refreshingTaskbar)return;
-        taskbarRefreshQueued=true;
-        window.Dispatcher.BeginInvoke(new Action(()=>{
-            taskbarRefreshQueued=false;
-            if(!window.IsVisible||!window.ShowInTaskbar)return;
-            if(!force&&requestedTaskbarResource==shellBrand.IconResource)return;
-            refreshingTaskbar=true;
-            try{
-                UpdateTaskbarSafely(()=>shellBrand.RefreshTaskbar(new WindowInteropHelper(window).Handle));
-                requestedTaskbarResource=shellBrand.IconResource;
-            }finally{refreshingTaskbar=false;}
-        }),System.Windows.Threading.DispatcherPriority.ContextIdle);
+        taskbarUpdates.Request(force);
     }
-    void UpdateTaskbarSafely(Action update){
-        try{update();}
+    bool UpdateTaskbarSafely(Action update){
+        try{update();return true;}
         catch(Exception error){
             // A shell appearance failure must not prevent opening or closing the Dashboard.
             System.Diagnostics.Trace.TraceError("Taskbar update failed: "+error);
             try{File.WriteAllText(StatePath("taskbar-error.txt"),DateTimeOffset.UtcNow.ToString("o")+"\r\n"+error);}catch{}
+            return false;
         }
     }
     [System.Runtime.InteropServices.DllImport("user32.dll")]
@@ -150,7 +141,11 @@ internal sealed partial class WpfDashboard
         var modes=new WrapPanel{Margin=new Thickness(0,8,0,8)};
         for(int i=0;i<3;i++){int mode=i;string label=i==1?PersonalTaskLabel():TaskLabel(i==0);var button=SourceAction(label,()=>{agentUpdatesView=false;assistantWorkView=mode==0;personalTasksView=mode==1;RenderCompact(true);Find<ScrollViewer>("ContentScroll").ScrollToHome();});
             bool selected=!agentUpdatesView&&i==(personalTasksView?1:assistantWorkView?0:2);SetNavigationSelected(button,selected);modes.Children.Add(button);
-        }header.Children.Add(modes);
+        }
+        if(!agentUpdatesView&&(assistantWorkView||personalTasksView))
+            modes.Children.Add(HeaderAction("Refresh","updates",()=>RefreshWorkSource(personalTasksView)));
+        else if(agentUpdatesView)modes.Children.Add(HeaderAction("Refresh","updates",()=>RenderCompact(true)));
+        header.Children.Add(modes);
         int attention=AttentionCount();Find<MenuItem>("ReportsMenu").Visibility=attention>0?Visibility.Visible:Visibility.Collapsed;
         if(attention>0){var notice=SourceAction("Needs your attention ("+attention+")",()=>{agentUpdatesView=true;RenderCompact(true);});SetNavigationSelected(notice,agentUpdatesView);rows.Children.Add(notice);}
         header.Children.Add(WorkText(agentUpdatesView?"Progress saved by participating agents, including work ready for review or needing attention.":personalTasksView?"Your personal tasks. Edit them here.":assistantWorkView?"Work your agents maintain.":"Quick things to add and check off."));
@@ -160,15 +155,23 @@ internal sealed partial class WpfDashboard
     {
         var dialog=new Window{Owner=nonWindowedVerification?null:window,Title=title,Width=width,Height=height,
             MinWidth=Math.Min(width,520),MinHeight=Math.Min(height,380),WindowStartupLocation=WindowStartupLocation.CenterOwner,
-            ShowInTaskbar=false,UseLayoutRounding=true,FontFamily=window.FontFamily,FontSize=window.FontSize,Icon=window.Icon};
+            ShowInTaskbar=false,UseLayoutRounding=true,FontFamily=window.FontFamily,FontSize=window.FontSize,Icon=DialogTitleIcon(window)};
         dialog.Resources["DashboardAccent"]=window.Resources["DashboardAccent"];
         dialog.SetResourceReference(Window.BackgroundProperty,"Background");
         var surface=new Border{Child=content};
         surface.SetResourceReference(Border.BackgroundProperty,"Background");
         dialog.Content=surface;
         dialog.SetResourceReference(Window.ForegroundProperty,"ThemeF2F2F2");
-        dialog.SourceInitialized+=(s,e)=>CenterDialog(dialog);
+        dialog.SourceInitialized+=(s,e)=>{CenterDialog(dialog);dialog.Icon=DialogTitleIcon(dialog);};
+        dialog.DpiChanged+=(s,e)=>dialog.Icon=DialogTitleIcon(dialog);
         return dialog;
+    }
+
+    static ImageSource DialogTitleIcon(Window owner)
+    {
+        int pixels=(int)Math.Round(16*VisualTreeHelper.GetDpi(owner).DpiScaleX);
+        using(var frame=DashboardBrand.Render(DashboardAccent.Selected,pixels))
+            return BitmapSourceFor(frame);
     }
 
     void CenterDialog(Window dialog)
@@ -237,7 +240,9 @@ internal sealed partial class WpfDashboard
 
     Func<Window,bool?> presentDialog=dialog=>dialog.ShowDialog();
 
-    void ShowHelp()
+    void ShowHelp(){ShowHelp(null,null);}
+
+    void ShowHelp(string initialTopic,Window owner)
     {
         var panel=new DockPanel{Margin=new Thickness(28)};
         var filter=new TextBox();
@@ -246,7 +251,10 @@ internal sealed partial class WpfDashboard
         DockPanel.SetDock(label,Dock.Top);panel.Children.Add(label);
         DockPanel.SetDock(filter,Dock.Top);panel.Children.Add(filter);
         var close=StandardAction(new Button{Content="Close",IsCancel=true,HorizontalAlignment=HorizontalAlignment.Right});
-        DockPanel.SetDock(close,Dock.Bottom);panel.Children.Add(close);
+        var actions=new WrapPanel{HorizontalAlignment=HorizontalAlignment.Right};
+        DockPanel.SetDock(actions,Dock.Bottom);panel.Children.Add(actions);
+        var copyPrompt=StandardAction(ActionButton("Copy setup prompt",()=>Protect(()=>Clipboard.SetText(DashboardHelp.AiSetupPrompt))));
+        actions.Children.Add(copyPrompt);actions.Children.Add(close);
         var topics=new ListBox{Width=260,Margin=new Thickness(0,0,18,0),
             ItemTemplate=(DataTemplate)System.Windows.Markup.XamlReader.Parse("<DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'><TextBlock Text='{Binding Title}' TextWrapping='Wrap'/></DataTemplate>")};
         DockPanel.SetDock(topics,Dock.Left);panel.Children.Add(topics);
@@ -255,6 +263,7 @@ internal sealed partial class WpfDashboard
         topics.SelectionChanged+=(s,e)=>{
             var topic=topics.SelectedItem as DashboardHelp.Topic;
             article.Text=topic==null?"":topic.Title+"\n\n"+topic.Body;
+            copyPrompt.Visibility=topic!=null&&topic.Title==DashboardHelp.AiSetupTitle?Visibility.Visible:Visibility.Collapsed;
         };
         Action refresh=()=>{
             topics.ItemsSource=DashboardHelp.Topics.Where(t=>(t.Title+" "+t.Body).IndexOf(filter.Text,StringComparison.CurrentCultureIgnoreCase)>=0).ToList();
@@ -262,7 +271,11 @@ internal sealed partial class WpfDashboard
         };
         filter.TextChanged+=(s,e)=>refresh();
         refresh();
-        presentDialog(Dialog("Help & user guide",900,620,panel));
+        if(initialTopic!=null)
+            topics.SelectedItem=topics.Items.Cast<DashboardHelp.Topic>().FirstOrDefault(topic=>topic.Title==initialTopic);
+        var dialog=Dialog("Help & user guide",900,620,panel);
+        if(owner!=null&&!nonWindowedVerification)dialog.Owner=owner;
+        presentDialog(dialog);
     }
 
     void TogglePin(string id)
@@ -297,6 +310,7 @@ internal sealed partial class WpfDashboard
 
     static ImageSource EntryIcon(Entry entry)
     {
+        if(HasDashboardGlyph(entry.iconGlyph))return GlyphSource(entry.iconGlyph);
         if(String.IsNullOrEmpty(entry.iconPath)&&entry.iconAsset=="local-dashboard.svg")
             using(var brand=DashboardBrand.Render(DashboardAccent.Selected,32))return BitmapSourceFor(brand);
         if(String.IsNullOrEmpty(entry.iconPath)||!File.Exists(entry.iconPath))
@@ -319,5 +333,6 @@ internal sealed partial class WpfDashboard
         }
         catch(NotSupportedException){return null;}
         catch(IOException){return null;}
+        catch(ArgumentException){return null;}
     }
 }

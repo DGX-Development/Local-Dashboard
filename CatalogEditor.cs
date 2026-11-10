@@ -20,6 +20,42 @@ internal sealed class CatalogDraft
         Entries=AppData.ReadEntries(original,Path.GetDirectoryName(file));
     }
 
+    internal Entry Add(string section,string kind)
+    {
+        if(section=="all"||!SidebarStore.Known(section))throw new IOException("Choose a category for the new link.");
+        if(!new[]{"folder","document","web"}.Contains(kind))throw new IOException("Choose Folder, Document or Website.");
+        var entry=new Entry{id="link-"+Guid.NewGuid().ToString("N"),section=section,name="New link",displayName="New link",
+            targets=new List<LinkTarget>{new LinkTarget{id="open",kind=kind,label=kind=="web"?"Website":kind=="folder"?"Folder":"Open",path=kind=="web"?null:"",url=kind=="web"?"":null}}};
+        Entries.Add(entry);
+        return entry;
+    }
+
+    internal void Remove(Entry entry){Entries.Remove(entry);}
+
+    internal string Prepare()
+    {
+        CheckOriginal();
+        var rows=AppData.Json.Deserialize<List<Dictionary<string,object>>>(original);
+        var baseline=AppData.ReadEntries(original,Path.GetDirectoryName(file));
+        var originals=baseline.Select((entry,index)=>new{entry,index}).ToDictionary(item=>item.entry.id,StringComparer.Ordinal);
+        if(Entries.Any(entry=>entry==null||String.IsNullOrWhiteSpace(entry.id))||Entries.Select(entry=>entry.id).Distinct(StringComparer.Ordinal).Count()!=Entries.Count)
+            throw new IOException("The directory contains duplicate or invalid link identifiers.");
+        bool changed=Entries.Count!=baseline.Count;
+        var result=new List<Dictionary<string,object>>();
+        foreach(var entry in Entries)
+        {
+            if(originals.ContainsKey(entry.id))
+            {
+                var before=originals[entry.id];
+                var row=rows[before.index];
+                changed=ApplyEntry(row,entry,before.entry)||changed;
+                result.Add(row);
+            }
+            else{result.Add(NewRow(entry));changed=true;}
+        }
+        return changed?AppData.Json.Serialize(result):null;
+    }
+
     internal void Save()
     {
         using(var mutex=new Mutex(false,ChecklistStore.LockName(file)))
@@ -30,17 +66,12 @@ internal sealed class CatalogDraft
             if(!acquired)throw new IOException("The directory is busy. Try again.");
             try
             {
-                CheckOriginal();
-                var rows=AppData.Json.Deserialize<List<Dictionary<string,object>>>(original);
-                var baseline=AppData.ReadEntries(original,Path.GetDirectoryName(file));
-                bool changed=false;
-                for(int i=0;i<Entries.Count;i++)
-                    changed=ApplyEntry(rows[i],Entries[i],baseline[i])||changed;
-                if(!changed)return;
-                string temporary=file+"."+Guid.NewGuid().ToString("N")+".tmp";
+                string json=Prepare();
+                if(json==null)return;
+                string temporary=Path.Combine(Path.GetDirectoryName(file),Guid.NewGuid().ToString("N")+".tmp");
                 try
                 {
-                    File.WriteAllText(temporary,AppData.Json.Serialize(rows));
+                    File.WriteAllText(temporary,json);
                     CheckOriginal();
                     File.Replace(temporary,file,null);
                 }
@@ -48,6 +79,33 @@ internal sealed class CatalogDraft
             }
             finally { mutex.ReleaseMutex(); }
         }
+    }
+
+    static void CheckName(string name)
+    {
+        if(String.IsNullOrWhiteSpace(name)||name.Length>120||name.Any(Char.IsControl))
+            throw new IOException("Enter a display name of 1 to 120 characters.");
+    }
+
+    static Dictionary<string,object> NewRow(Entry entry)
+    {
+        CheckName(entry.name);
+        if(entry.section=="all"||!SidebarStore.Known(entry.section)||entry.targets==null||entry.targets.Count!=1)
+            throw new IOException("Choose a category and destination for the new link.");
+        var target=entry.targets[0];
+        if(target.kind=="web"&&(String.IsNullOrEmpty(target.url)||target.url.Contains("\"")||target.url.Any(Char.IsControl)))
+            throw new IOException("Enter a valid website address.");
+        AppData.Validate(target);
+        var destination=new Dictionary<string,object>{{"id",target.id},{"kind",target.kind},{"label",target.label}};
+        destination[target.kind=="web"?"url":"path"]=target.kind=="web"?target.url:target.path;
+        var row=new Dictionary<string,object>{{"id",entry.id},{"name",entry.name.Trim()},{"displayName",entry.name.Trim()},{"section",entry.section},{"targets",new[]{destination}}};
+        if(!String.IsNullOrWhiteSpace(entry.iconPath))
+        {
+            using(var image=Path.GetExtension(entry.iconPath).Equals(".ico",StringComparison.OrdinalIgnoreCase)?DashboardForm.ReadIcon(entry.iconPath):Image.FromFile(entry.iconPath)){}
+            row["iconPath"]=entry.iconPath;
+        }
+        if(!String.IsNullOrEmpty(entry.iconGlyph))row["iconGlyph"]=entry.iconGlyph;
+        return row;
     }
 
     void CheckOriginal()
@@ -59,10 +117,25 @@ internal sealed class CatalogDraft
     static bool ApplyEntry(Dictionary<string,object> row,Entry entry,Entry previous)
     {
         bool changed=false;
+        if(entry.section!=previous.section)
+        {
+            if(entry.section=="all"||!SidebarStore.Known(entry.section))throw new IOException("Choose a valid category.");
+            row["section"]=entry.section;
+            changed=true;
+        }
+        if(entry.iconGlyph!=previous.iconGlyph)
+        {
+            if(String.IsNullOrEmpty(entry.iconGlyph))row.Remove("iconGlyph");else row["iconGlyph"]=entry.iconGlyph;
+            changed=true;
+        }
+        if(entry.iconAsset!=previous.iconAsset)
+        {
+            if(String.IsNullOrEmpty(entry.iconAsset))row.Remove("iconAsset");else row["iconAsset"]=entry.iconAsset;
+            changed=true;
+        }
         if(entry.name!=previous.name)
         {
-            if(String.IsNullOrWhiteSpace(entry.name)||entry.name.Length>120||entry.name.Any(Char.IsControl))
-                throw new IOException("Enter a display name of 1 to 120 characters.");
+            CheckName(entry.name);
             row["displayName"]=entry.name.Trim();
             changed=true;
         }
@@ -78,19 +151,37 @@ internal sealed class CatalogDraft
             changed=true;
         }
         var targets=(IList)row["targets"];
-        for(int i=0;i<entry.targets.Count;i++)
+        if(entry.targets.Count==0&&previous.targets.Count>0)throw new IOException("Keep one destination or remove the link.");
+        var retained=new List<object>();
+        foreach(var target in entry.targets)
         {
-            var target=entry.targets[i];
-            var before=previous.targets[i];
-            if(target.path==before.path&&target.url==before.url)continue;
+            int index=previous.targets.FindIndex(item=>item.id==target.id);
+            if(index<0)throw new IOException("The destination is no longer available.");
+            var before=previous.targets[index];
+            var raw=(Dictionary<string,object>)targets[index];
+            retained.Add(raw);
+            if(target.kind==before.kind&&target.path==before.path&&target.url==before.url)continue;
             if(target.kind=="web"&&(String.IsNullOrEmpty(target.url)||target.url.Contains("\"")||target.url.Any(Char.IsControl)))
                 throw new IOException("Enter a valid website address.");
             AppData.Validate(target);
-            var raw=(Dictionary<string,object>)targets[i];
+            if(target.kind!=before.kind)
+            {
+                raw["kind"]=target.kind;
+                string oldLabel=before.kind=="web"?"Website":before.kind=="folder"?"Folder":"Open";
+                if(String.IsNullOrWhiteSpace(before.label)||before.label==oldLabel)
+                    raw["label"]=target.kind=="web"?"Website":target.kind=="folder"?"Folder":"Open";
+                if(target.kind=="web")raw.Remove("path");
+                else raw.Remove("url");
+            }
             if(target.kind=="web")raw["url"]=target.url;
-            else raw["path"]=target.path;
+            else if(target.path!=before.path)raw["path"]=target.path;
             if(target.kind=="folder"&&String.IsNullOrWhiteSpace(entry.displayName))
                 row["displayName"]=entry.name.Trim();
+            changed=true;
+        }
+        if(retained.Count!=targets.Count)
+        {
+            row["targets"]=retained;
             changed=true;
         }
         return changed;

@@ -46,7 +46,7 @@ internal sealed partial class WpfDashboard {
         button.SetResourceReference(Control.ForegroundProperty,selected?"DashboardAccent":"ThemeF2F2F2");
     }
     static Border WorkRule(){var line=new Border{Height=1,Margin=new Thickness(0,5,0,10)};line.SetResourceReference(Border.BackgroundProperty,"Theme444444");return line;}
-    Button HeaderAction(string text,string glyph,Action action){var button=ActionButton(text,action);var group=new StackPanel{Orientation=Orientation.Horizontal,VerticalAlignment=VerticalAlignment.Center};var image=GlyphImage(glyph);image.Margin=new Thickness(0,0,7,0);image.VerticalAlignment=VerticalAlignment.Center;group.Children.Add(image);group.Children.Add(new TextBlock{Text=text,VerticalAlignment=VerticalAlignment.Center});button.Content=group;button.HorizontalAlignment=HorizontalAlignment.Left;button.VerticalContentAlignment=VerticalAlignment.Center;button.HorizontalContentAlignment=HorizontalAlignment.Center;button.Padding=new Thickness(11,0,11,0);button.Height=36;button.Margin=new Thickness(0,0,7,8);System.Windows.Automation.AutomationProperties.SetName(button,text);return button;}
+    Button HeaderAction(string text,string glyph,Action action,Button supplied=null){var button=supplied??new Button();button.Click+=(s,e)=>action();var group=new StackPanel{Orientation=Orientation.Horizontal,VerticalAlignment=VerticalAlignment.Center};var image=GlyphImage(glyph);image.Margin=new Thickness(0,0,7,0);image.VerticalAlignment=VerticalAlignment.Center;group.Children.Add(image);group.Children.Add(new TextBlock{Text=text,VerticalAlignment=VerticalAlignment.Center});button.Content=group;button.HorizontalAlignment=HorizontalAlignment.Left;button.VerticalContentAlignment=VerticalAlignment.Center;button.HorizontalContentAlignment=HorizontalAlignment.Center;button.Padding=new Thickness(11,0,11,0);button.Height=36;button.Margin=new Thickness(0,0,7,8);System.Windows.Automation.AutomationProperties.SetName(button,text);return button;}
     void FitToWorkArea(){
         var handle=new System.Windows.Interop.WindowInteropHelper(window).Handle;
         var screen=System.Windows.Forms.Screen.FromHandle(handle).WorkingArea;
@@ -56,26 +56,80 @@ internal sealed partial class WpfDashboard {
         window.Left=Math.Max(start.X,Math.Min(Double.IsNaN(window.Left)?start.X:window.Left,end.X-window.Width));window.Top=Math.Max(start.Y,Math.Min(Double.IsNaN(window.Top)?start.Y:window.Top,end.Y-window.Height));
     }
     static string SectionLabel(string id,string label){return label;}
+    Button WindowIconButton(string label,string glyph,Action action,Button supplied=null)
+    {
+        var button=supplied??new Button();
+        button.SetResourceReference(FrameworkElement.StyleProperty,typeof(Button));
+        button.Content=GlyphImage(glyph);
+        button.Width=button.Height=36;
+        button.Margin=new Thickness(6,0,0,0);
+        button.Padding=new Thickness(0);
+        button.ToolTip=label;
+        System.Windows.Automation.AutomationProperties.SetName(button,label);
+        button.Click+=(s,e)=>action();
+        return button;
+    }
+
     void UpdateHeaderActions(){
-        var panel=Find<WrapPanel>("CompactToolbar");
+        var topMenu=Find<MenuItem>("TopMenu");
+        topMenu.IsChecked=window.Topmost;
+        ((Image)topMenu.Icon).Tag=window.Topmost?"pin-active":"pin";
+        Panel panel=Compact?(Panel)Find<WrapPanel>("CompactToolbar"):Find<StackPanel>("FullWindowActions");
         foreach(Button button in panel.Children){
-            if(Equals(button.Tag,"work-refresh"))button.Visibility=section=="work"?Visibility.Visible:Visibility.Collapsed;
-            if(Equals(button.Tag,"view-toggle")){
-                button.Visibility=Compact?Visibility.Collapsed:Visibility.Visible;
-                string label=section=="work"?"Dashboard":"Tasks";
-                System.Windows.Automation.AutomationProperties.SetName(button,label);
-                var group=(StackPanel)button.Content;group.Children.OfType<TextBlock>().Single().Text=label;
-                var icon=group.Children.OfType<Image>().Single();icon.Tag=section=="work"?"dashboard":"checklist";
-            }
             if(Equals(button.Tag,"compact-toggle")){
                 string label=Compact?"Expand":"Compact view";
                 System.Windows.Automation.AutomationProperties.SetName(button,label);
-                ((StackPanel)button.Content).Children.OfType<TextBlock>().Single().Text=label;
-                ((StackPanel)button.Content).Children.OfType<Image>().Single().Tag=Compact?"expand":"compact";
+                button.ToolTip=label;
+                ((Image)button.Content).Tag=Compact?"expand":"compact";
             }
             bool selected=System.Windows.Automation.AutomationProperties.GetName(button)=="On top"&&window.Topmost;
             button.SetResourceReference(Control.ForegroundProperty,selected?"DashboardAccent":"ThemeF2F2F2");
-            if(Equals(button.Tag,"always-on-top")){button.SetResourceReference(Control.BackgroundProperty,selected?"Theme454545":"Theme383838");button.ToolTip=selected?"Always on top is on. Click to turn off.":"Keep Dashboard above other windows.";}
+            var pin=button as OnTopButton;
+            if(pin!=null)
+            {
+                pin.Pressed=selected;
+                ((Image)pin.Content).Tag=selected?"pin-active":"pin";
+                pin.SetResourceReference(Control.BackgroundProperty,selected?"Theme454545":"Theme383838");
+                pin.ToolTip=selected?"Always on top is on. Click to turn off.":"Always on top is off. Click to keep Dashboard above other windows.";
+            }
+        }
+    }
+    sealed class OnTopButton:Button
+    {
+        bool pressed;
+        internal bool Pressed
+        {
+            get{return pressed;}
+            set
+            {
+                if(pressed==value)return;
+                var previous=pressed;
+                pressed=value;
+                var peer=System.Windows.Automation.Peers.UIElementAutomationPeer.FromElement(this);
+                if(peer!=null)peer.RaisePropertyChangedEvent(System.Windows.Automation.TogglePatternIdentifiers.ToggleStateProperty,
+                    previous?System.Windows.Automation.ToggleState.On:System.Windows.Automation.ToggleState.Off,
+                    pressed?System.Windows.Automation.ToggleState.On:System.Windows.Automation.ToggleState.Off);
+            }
+        }
+
+        protected override System.Windows.Automation.Peers.AutomationPeer OnCreateAutomationPeer(){return new OnTopPeer(this);}
+        sealed class OnTopPeer:System.Windows.Automation.Peers.ButtonAutomationPeer,System.Windows.Automation.Provider.IToggleProvider
+        {
+            readonly OnTopButton button;
+            internal OnTopPeer(OnTopButton owner):base(owner){button=owner;}
+            public override object GetPattern(System.Windows.Automation.Peers.PatternInterface pattern)
+            {
+                return pattern==System.Windows.Automation.Peers.PatternInterface.Toggle?this:base.GetPattern(pattern);
+            }
+            public System.Windows.Automation.ToggleState ToggleState
+            {
+                get{return button.Pressed?System.Windows.Automation.ToggleState.On:System.Windows.Automation.ToggleState.Off;}
+            }
+            public void Toggle()
+            {
+                if(!IsEnabled())throw new System.Windows.Automation.ElementNotEnabledException();
+                button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            }
         }
     }
     static Button WorkRefresh(Action action){var button=CompactAction(ActionButton("Refresh",action));button.Margin=new Thickness(0,0,0,8);return button;}
@@ -109,7 +163,12 @@ internal sealed partial class WpfDashboard {
         row.Children.Add(WorkText("Details (optional)"));var details=new TextBox{Text=item.details??"",AcceptsReturn=true,TextWrapping=TextWrapping.Wrap,MaxLength=2000,MinHeight=65,MaxHeight=160,VerticalScrollBarVisibility=ScrollBarVisibility.Auto};System.Windows.Automation.AutomationProperties.SetName(details,"Checklist details");row.Children.Add(details);
         var error=WorkText("");row.Children.Add(error);var actions=new WrapPanel();
         Action save=()=>{try{store.Upsert(new WorkPatch{expectedRevision=document.revision,id=item.id,title=title.Text.Trim(),details=details.Text,projectPath=item.projectPath});RenderCompact(true);}catch(Exception failure){error.Text=failure.Message;}};
-        actions.Children.Add(SourceAction("Save",save));actions.Children.Add(SourceAction("Cancel",()=>RenderCompact(true)));row.Children.Add(actions);title.Focus();title.SelectAll();
+        actions.Children.Add(SourceAction("Save",save));
+        actions.Children.Add(SourceAction("Delete item",()=>{
+            if(MessageBox.Show(window,"Delete this checklist item?","Delete item",MessageBoxButton.YesNo,MessageBoxImage.Question)!=MessageBoxResult.Yes)return;
+            try{store.Delete(document.revision,item.id);RenderCompact(true);}catch(Exception failure){error.Text=failure.Message;}
+        }));
+        actions.Children.Add(SourceAction("Cancel",()=>RenderCompact(true)));row.Children.Add(actions);title.Focus();title.SelectAll();
         title.KeyDown+=(s,e)=>{if(e.Key==Key.Enter){save();e.Handled=true;}else if(e.Key==Key.Escape){RenderCompact(true);e.Handled=true;}};
     }
 }

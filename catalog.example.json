@@ -1,10 +1,10 @@
 [
   {
     "id": "example-project",
-    "name": "Example project",
-    "displayName": "Example project",
+    "name": "Sample project folder",
+    "displayName": "Sample project folder",
     "section": "software",
-    "description": "A sample folder. Use Edit to choose one of your own project folders.",
+    "description": "Open a folder in Explorer, then use Edit Dashboard to add a folder you use.",
     "targets": [
       {
         "id": "open",
@@ -16,10 +16,10 @@
   },
   {
     "id": "example-document",
-    "name": "Example document",
-    "displayName": "Example document",
+    "name": "Sample project brief",
+    "displayName": "Sample project brief",
     "section": "documents",
-    "description": "A sample document. Use Edit to choose one of your own documents.",
+    "description": "Open a short project brief, then use Edit Dashboard to add a document you use.",
     "targets": [
       {
         "id": "open",
@@ -31,10 +31,10 @@
   },
   {
     "id": "example-website",
-    "name": "Example website",
-    "displayName": "Example website",
+    "name": "Sample website",
+    "displayName": "Sample website",
     "section": "everyday",
-    "description": "A sample website. Use Edit to enter a website you use.",
+    "description": "Open a website in your browser, then use Edit Dashboard to add one you visit.",
     "targets": [
       {
         "id": "open",

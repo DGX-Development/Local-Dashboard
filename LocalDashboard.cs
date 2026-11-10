@@ -16,14 +16,14 @@ using System.Windows.Forms;
 [assembly: AssemblyProduct("Local Dashboard")]
 [assembly: AssemblyDescription("Local projects, documents and workflows")]
 #if WPF_REBUILD
-[assembly: AssemblyVersion("2.2.1.0")]
-[assembly: AssemblyFileVersion("2.2.1.0")]
+[assembly: AssemblyVersion("2.2.2.5")]
+[assembly: AssemblyFileVersion("2.2.2.5")]
 #else
 [assembly: AssemblyVersion("1.5.6.0")]
 [assembly: AssemblyFileVersion("1.5.6.0")]
 #endif
 public sealed class LinkTarget { public string id {get;set;} public string kind {get;set;} public string path {get;set;} public string url {get;set;} public string label {get;set;} public string openIn {get;set;} }
-public sealed class Entry { public string id {get;set;} public string name {get;set;} public string displayName {get;set;} public string section {get;set;} public string description {get;set;} public string iconPath {get;set;} public string iconAsset {get;set;} public List<LinkTarget> targets {get;set;} }
+public sealed class Entry { public string id {get;set;} public string name {get;set;} public string displayName {get;set;} public string section {get;set;} public string description {get;set;} public string iconPath {get;set;} public string iconGlyph {get;set;} public string iconAsset {get;set;} public List<LinkTarget> targets {get;set;} }
 internal static class AppData {
     internal static readonly string Root=LocateRoot();
     internal static readonly JavaScriptSerializer Json=new JavaScriptSerializer { MaxJsonLength=32*1024*1024 };
@@ -360,7 +360,7 @@ internal sealed class DashboardForm:Form {
     }
     internal void RenderIconAudit(string output){var catalog=AppData.Load();using(var sheet=new Bitmap(880,((catalog.Count+1)/2)*66+45)){using(var g=Graphics.FromImage(sheet)){g.Clear(Background);using(var font=new Font("Segoe UI",10))using(var brush=new SolidBrush(Ink)){g.DrawString("Actual dashboard icons at 32 pixels — original sources retained",font,brush,14,12);for(int i=0;i<catalog.Count;i++){int x=14+(i%2)*440,y=46+(i/2)*66;using(var view=new IconView{Size=new Size(32,32),BackColor=Surface,Image=ImageFor(catalog[i])})using(var tile=new Bitmap(32,32)){view.DrawToBitmap(tile,new Rectangle(0,0,32,32));g.DrawImageUnscaled(tile,x,y);}g.DrawString(catalog[i].name,font,brush,x+44,y+7);}}}sheet.Save(output,System.Drawing.Imaging.ImageFormat.Png);}}
     bool Matches(Entry entry){string query=search.Text.Trim();return query.Length==0||(entry.name+" "+entry.description+" "+entry.section+" "+String.Join(" ",entry.targets.Select(t=>t.path??t.url))).IndexOf(query,StringComparison.CurrentCultureIgnoreCase)>=0;}
-    internal static bool EntryInSection(Entry e,string section){return section=="all"||(section=="media"?new[]{"dev-broadcastforge","dev-clipforge","paranormal-archive","pa-media-catalog"}.Contains(e.id):e.section==section);}
+    internal static bool EntryInSection(Entry e,string section){return section=="all"||e.section==section||(section=="media"&&new[]{"dev-broadcastforge","dev-clipforge","paranormal-archive","pa-media-catalog"}.Contains(e.id));}
     List<Entry> OrderedRows(string section){var values=entries.Where(e=>EntryInSection(e,section)).ToList();var custom=sidebarEditor==null?new List<string>():sidebarEditor.OrderFor(section);return custom.Count==0?values.OrderByDescending(e=>pinned.Contains(e.id)).ThenBy(e=>e.name,StringComparer.CurrentCultureIgnoreCase).ThenBy(e=>e.id,StringComparer.Ordinal).ToList():values.OrderBy(e=>custom.Contains(e.id)?custom.IndexOf(e.id):Int32.MaxValue).ThenBy(e=>e.name,StringComparer.CurrentCultureIgnoreCase).ThenBy(e=>e.id,StringComparer.Ordinal).ToList();}
     Panel MakeCard(string section,string title,string rootId,bool collapse){
         if(sidebarEditor!=null)title=sidebarEditor.LabelFor(section);var rows=OrderedRows(section).Where(Matches).ToList();if(rows.Count==0)return null;

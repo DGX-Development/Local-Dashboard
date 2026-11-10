@@ -51,7 +51,7 @@ internal sealed partial class WpfDashboard
             presentDialog=dialog=>{
                 Capture(dialog.Content as UIElement,Path.Combine(profile,"layout-dialog-"+SafeName(dialog.Title)+".png"),(int)dialog.Width-16,(int)dialog.Height-39);
                 if(dialog.IsVisible||new System.Windows.Interop.WindowInteropHelper(dialog).Handle!=IntPtr.Zero)throw new Exception("Dialog created a native window.");
-                if(dialog.Title=="Edit dashboard links")
+                if(dialog.Title=="Edit Dashboard")
                 {
                     var destinations=Visuals<ListBox>(dialog.Content as DependencyObject).Single(l=>System.Windows.Automation.AutomationProperties.GetName(l)=="Destination");
                     var scroll=Visuals<ScrollViewer>(destinations).First();

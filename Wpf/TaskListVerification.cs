@@ -161,14 +161,14 @@ internal sealed partial class WpfDashboard {
             presentDialog=dialog=>{
                 Capture(dialog.Content as UIElement,Path.Combine(profile,"release-edit-from-"+section+".png"),844,581);
                 var root=dialog.Content as DependencyObject;
-                var picker=Visuals<ComboBox>(root).Single();var items=Visuals<ListBox>(root).Single(l=>System.Windows.Automation.AutomationProperties.GetName(l)=="Dashboard entries");
-                var name=Visuals<TextBox>(root).Single(t=>System.Windows.Automation.AutomationProperties.GetName(t)=="Display name");
+                var picker=Visuals<ListBox>(root).Single(t=>System.Windows.Automation.AutomationProperties.GetName(t)=="Section");var items=Visuals<ListBox>(root).Single(l=>System.Windows.Automation.AutomationProperties.GetName(l)=="Dashboard entries");
+                var name=Visuals<TextBox>(root).Single(t=>System.Windows.Automation.AutomationProperties.GetName(t)=="Name");
                 if(picker.SelectedItem==null||items.SelectedItem==null||String.IsNullOrWhiteSpace(name.Text))throw new Exception("Editor initial selection is blank.");
                 picker.SelectedValue="workflows";Capture(dialog.Content as UIElement,Path.Combine(profile,"release-edit-empty.png"),844,581);
                 if(items.Items.Count==0&&(!Visuals<TextBlock>(root).Any(t=>t.Visibility==Visibility.Visible&&t.Text.StartsWith("No links in this category"))||name.IsEnabled))throw new Exception("Editor empty state is missing.");
                 dialog.Close();return false;
             };
-            Select("work");EditCatalog();Select("software");EditCatalog();presentDialog=normalPresenter;
+            Select("software");EditCatalog();presentDialog=normalPresenter;
             if(File.ReadAllText(Path.Combine(profile,"catalog.json"))!=catalogBefore)throw new Exception("Opening editor changed the catalog.");
             if(window.Title!="Local Dashboard"||((Image)Find<MenuItem>("CompactMenu").Icon).Tag.ToString()!="compact")throw new Exception("Release title or Compact icon differs.");
             foreach(string theme in new[]{"Dark","Light"}){

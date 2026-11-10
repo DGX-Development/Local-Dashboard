@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.2.2 - 2026-11-10
+
+- Manage categories, links, icons and ordering in Edit Dashboard. Drag whole rows or use the keyboard. Save applies the draft and Cancel discards it.
+- Choose built-in icons from a searchable picker or browse for a local image. Reassign links when removing a category.
+- Open Tasks from the sidebar. Load newly chosen task files on Save and refresh them beside the task tabs.
+- Expand the setup walkthrough, sample content and Help, including an optional AI setup guide.
+- Keep separate full and compact window placements, with a reset in Settings. Use consistent selection markers and outline or filled pins.
+- Improve configuration backup and restore, including a catalog-only import with a recovery copy.
+- Improve Windows taskbar accent-icon refresh and shorten temporary task-cache paths.
+- Direct sign-in for Google Drive, Dropbox and OneDrive remains planned.
+
+
 ## 2.2.1 - 2026-11-09
 
 - Replaced personal-style sidebar defaults with Projects, Documents, Websites and All links.

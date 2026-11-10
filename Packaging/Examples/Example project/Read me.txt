@@ -1,5 +1,7 @@
-EXAMPLE PROJECT
+SAMPLE PROJECT FOLDER
 
-This is a generic sample folder supplied with Local Dashboard.
-Use Edit below the sidebar to replace its display name and folder location with a project of your own.
-Your existing projects are not moved or copied.
+This is where notes, plans and other files for a project can live.
+
+Try adding a folder you use. In Dashboard, choose Edit, select or add a
+category, choose Add link, set Opens to Folder, and browse to your folder.
+Save, then try opening the link. Dashboard keeps a link to the original folder.

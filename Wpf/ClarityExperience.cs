@@ -8,8 +8,45 @@ using System.Windows.Controls;
 using System.Windows.Media;
 
 internal sealed class CompactPlacement { public double left{get;set;} public double top{get;set;} public double width{get;set;} public double height{get;set;} }
+internal sealed class FullPlacement { public double left{get;set;} public double top{get;set;} public double width{get;set;} public double height{get;set;} public bool maximized{get;set;} }
 internal sealed partial class WpfDashboard {
     Rect? compactBounds;
+    bool loadedFullPlacement;
+    void LoadFullBounds(){
+        try{
+            string path=StatePath("full-window.json");if(!File.Exists(path))return;
+            var value=AppData.Json.Deserialize<FullPlacement>(Encoding.UTF8.GetString(DashboardData.ReadBounded(path,4096)));
+            if(value==null||new[]{value.left,value.top,value.width,value.height}.Any(v=>Double.IsNaN(v)||Double.IsInfinity(v))||value.width<100||value.height<100)return;
+            fullBounds=new Rect(value.left,value.top,Math.Max(760,Math.Min(6000,value.width)),Math.Max(540,Math.Min(4000,value.height)));
+            fullState=value.maximized?WindowState.Maximized:WindowState.Normal;loadedFullPlacement=true;
+            window.WindowStartupLocation=WindowStartupLocation.Manual;window.Left=fullBounds.Left;window.Top=fullBounds.Top;window.Width=fullBounds.Width;window.Height=fullBounds.Height;
+        }catch(IOException){}catch(ArgumentException){}
+    }
+    void SaveFullBounds(){
+        if(!Compact){
+            var bounds=window.WindowState==WindowState.Normal?new Rect(window.Left,window.Top,window.Width,window.Height):window.RestoreBounds;
+            if(bounds.IsEmpty||new[]{bounds.Left,bounds.Top,bounds.Width,bounds.Height}.Any(v=>Double.IsNaN(v)||Double.IsInfinity(v)))return;
+            fullBounds=bounds;if(window.WindowState!=WindowState.Minimized)fullState=window.WindowState;
+        }
+        if(nonWindowedVerification||fullBounds.Width<100||fullBounds.Height<100)return;
+        DashboardData.Atomic(StatePath("full-window.json"),Encoding.UTF8.GetBytes(AppData.Json.Serialize(new FullPlacement{left=fullBounds.Left,top=fullBounds.Top,width=fullBounds.Width,height=fullBounds.Height,maximized=fullState==WindowState.Maximized})));
+    }
+    void SaveWindowBounds(){SaveCompactBounds();SaveFullBounds();}
+    void ResetWindowSizes(){
+        var screen=System.Windows.Forms.Screen.FromHandle(new System.Windows.Interop.WindowInteropHelper(window).Handle).WorkingArea;
+        var source=PresentationSource.FromVisual(window);var transform=source==null?Matrix.Identity:source.CompositionTarget.TransformFromDevice;
+        var start=transform.Transform(new Point(screen.Left,screen.Top));var end=transform.Transform(new Point(screen.Right,screen.Bottom));
+        double width=Math.Max(760,Math.Min(1280,end.X-start.X)),height=Math.Max(540,Math.Min(860,end.Y-start.Y));
+        fullBounds=new Rect(start.X+(end.X-start.X-width)/2,start.Y+(end.Y-start.Y-height)/2,width,height);fullState=WindowState.Normal;
+        compactSize=new Size(Math.Max(CompactMinimumWidth(),Math.Min(580,end.X-start.X)),Math.Max(420,Math.Min(760,end.Y-start.Y)));
+        compactBounds=new Rect(start.X+(end.X-start.X-compactSize.Width)/2,start.Y+(end.Y-start.Y-compactSize.Height)/2,compactSize.Width,compactSize.Height);
+        var current=Compact?compactBounds.Value:fullBounds;window.WindowState=WindowState.Normal;window.Width=current.Width;window.Height=current.Height;window.Left=current.Left;window.Top=current.Top;
+        if(!nonWindowedVerification){
+            var compact=compactBounds.Value;
+            DashboardData.Atomic(StatePath("compact-window.json"),Encoding.UTF8.GetBytes(AppData.Json.Serialize(new CompactPlacement{left=compact.Left,top=compact.Top,width=compact.Width,height=compact.Height})));
+            SaveFullBounds();
+        }
+    }
     double CompactMinimumWidth(){
         UpdateHeaderActions();var toolbar=Find<WrapPanel>("CompactToolbar");double width=0;
         foreach(Button button in toolbar.Children){if(button.Visibility!=Visibility.Visible)continue;button.Measure(new Size(Double.PositiveInfinity,Double.PositiveInfinity));width+=button.DesiredSize.Width;}

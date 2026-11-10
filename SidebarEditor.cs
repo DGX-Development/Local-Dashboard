@@ -7,14 +7,37 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Windows.Forms;
-public sealed class SidebarItem {public string id{get;set;}public string label{get;set;}}
-public sealed class SidebarLayout {public int schemaVersion{get;set;}public long revision{get;set;}public List<SidebarItem> items{get;set;}public Dictionary<string,List<string>> orders{get;set;}}
+public sealed class SidebarItem : System.ComponentModel.INotifyPropertyChanged {
+    public string id{get;set;}
+    public string icon{get;set;}
+    public string iconPath{get;set;}
+    string categoryLabel;
+    public string label {
+        get { return categoryLabel; }
+        set {
+            if(categoryLabel==value)return;
+            categoryLabel=value;
+            var changed=PropertyChanged;
+            if(changed!=null)changed(this,new System.ComponentModel.PropertyChangedEventArgs("label"));
+        }
+    }
+    public event System.ComponentModel.PropertyChangedEventHandler PropertyChanged;
+}
+public sealed class SidebarLayout {public int schemaVersion{get;set;}public long revision{get;set;}public bool customized{get;set;}public List<SidebarItem> items{get;set;}public Dictionary<string,List<string>> orders{get;set;}}
 internal sealed class SidebarSnapshot {internal SidebarLayout Layout;internal string Token;}
 internal sealed class SidebarStore {
     internal static readonly string FilePath=Path.Combine(AppData.Root,".local","sidebar-layout.json");
     internal static readonly string[,] Groups={{"software","Projects","categories"},{"media","Media","reports"},{"website","Web projects","folder"},{"documents","Documents","dev-guide"},{"everyday","Websites","globe"},{"workflows","Workflows","workflow"},{"secondary","Other folders","folder"},{"all","All links","categories"}};
-    internal static bool Known(string id){return Enumerable.Range(0,Groups.GetLength(0)).Any(i=>Groups[i,0]==id);}
-    internal static string DefaultLabel(string id){for(int i=0;i<Groups.GetLength(0);i++)if(Groups[i,0]==id)return Groups[i,1];return id;}
+    internal static bool Custom(string id){
+        Guid key;
+        return id!=null&&id.StartsWith("category-",StringComparison.Ordinal)&&Guid.TryParseExact(id.Substring(9),"N",out key);
+    }
+    internal static bool Known(string id){return Custom(id)||Enumerable.Range(0,Groups.GetLength(0)).Any(i=>Groups[i,0]==id);}
+    internal static string DefaultIcon(string id){
+        for(int i=0;i<Groups.GetLength(0);i++)if(Groups[i,0]==id)return Groups[i,2];
+        return "folder";
+    }
+    internal static string DefaultLabel(string id){for(int i=0;i<Groups.GetLength(0);i++)if(Groups[i,0]==id)return Groups[i,1];return Custom(id)?"Imported category":id;}
     static string LegacyDefaultLabel(string id){
         switch(id){
             case "software":return "Software projects";
@@ -41,12 +64,64 @@ internal sealed class SidebarStore {
                 if(!initial.items.Any(i=>i.id==id))initial.items.Insert(initial.items.Count-1,new SidebarItem{id=id,label=DefaultLabel(id)});
         }
         return new SidebarSnapshot{Layout=initial,Token="missing"};
-    }Require(new FileInfo(file).Length<=128*1024,"Sidebar layout is too large.");string text;using(var stream=new FileStream(file,FileMode.Open,FileAccess.Read,FileShare.ReadWrite|FileShare.Delete))using(var reader=new StreamReader(stream))text=reader.ReadToEnd();var value=AppData.Json.Deserialize<SidebarLayout>(text);Validate(value);if(value.orders==null)value.orders=new Dictionary<string,List<string>>();foreach(var order in value.orders){Require(!String.IsNullOrWhiteSpace(order.Key)&&order.Key.Length<=100&&!order.Key.Any(Char.IsControl)&&order.Value!=null&&order.Value.Count<=500&&order.Value.Distinct(StringComparer.Ordinal).Count()==order.Value.Count&&order.Value.All(id=>!String.IsNullOrWhiteSpace(id)&&id.Length<=100&&!id.Any(Char.IsControl)),"Invalid project order.");}foreach(var item in Defaults().items){
+    }Require(new FileInfo(file).Length<=128*1024,"Sidebar layout is too large.");string text;using(var stream=new FileStream(file,FileMode.Open,FileAccess.Read,FileShare.ReadWrite|FileShare.Delete))using(var reader=new StreamReader(stream))text=reader.ReadToEnd();var value=AppData.Json.Deserialize<SidebarLayout>(text);Validate(value);if(value.orders==null)value.orders=new Dictionary<string,List<string>>();foreach(var order in value.orders){Require(!String.IsNullOrWhiteSpace(order.Key)&&order.Key.Length<=100&&!order.Key.Any(Char.IsControl)&&order.Value!=null&&order.Value.Count<=500&&order.Value.Distinct(StringComparer.Ordinal).Count()==order.Value.Count&&order.Value.All(id=>!String.IsNullOrWhiteSpace(id)&&id.Length<=100&&!id.Any(Char.IsControl)),"Invalid project order.");}foreach(var item in Defaults().items.Where(item=>!value.customized||item.id=="all")){
         var existing=value.items.FirstOrDefault(i=>i.id==item.id);
         if(existing==null)value.items.Add(item);
         // Saved labels belong to the user; never replace them with new defaults.
     }return new SidebarSnapshot{Layout=value,Token=Hash(text)};}
-    internal SidebarSnapshot Save(SidebarSnapshot expected,SidebarLayout draft){Validate(draft);bool locked=false;using(var mutex=new Mutex(false,ChecklistStore.LockName(file))){try{try{locked=mutex.WaitOne(0);}catch(AbandonedMutexException){locked=true;}Require(locked,"Sidebar is busy. Nothing was saved; try again.");var current=Read();Require(current.Layout.revision==expected.Layout.revision&&current.Token==expected.Token,"Sidebar changed elsewhere. Nothing was saved. Cancel to load the latest layout, then edit again.");Require(current.Layout.revision<Int64.MaxValue,"Sidebar revision limit reached.");var raw=File.Exists(file)?AppData.Json.DeserializeObject(File.ReadAllText(file)) as Dictionary<string,object>:new Dictionary<string,object>();Require(raw!=null,"Invalid sidebar data.");var saved=new Dictionary<string,Dictionary<string,object>>();object old;if(raw.TryGetValue("items",out old)&&old is System.Collections.IEnumerable)foreach(object obj in (System.Collections.IEnumerable)old){var row=obj as Dictionary<string,object>;if(row!=null&&row.ContainsKey("id"))saved[Convert.ToString(row["id"])]=row;}var rows=new List<object>();foreach(var item in draft.items){Dictionary<string,object> row;if(!saved.TryGetValue(item.id,out row))row=new Dictionary<string,object>();row["id"]=item.id;row["label"]=item.label.Trim();rows.Add(row);}raw["schemaVersion"]=1;raw["revision"]=current.Layout.revision+1;raw["items"]=rows;raw["orders"]=draft.orders??new Dictionary<string,List<string>>();string json=AppData.Json.Serialize(raw);Require(Encoding.UTF8.GetByteCount(json)<=128*1024,"Sidebar layout is too large.");Directory.CreateDirectory(Path.GetDirectoryName(file));string temporary=file+"."+Guid.NewGuid().ToString("N")+".tmp";try{File.WriteAllText(temporary,json,new UTF8Encoding(false));if(File.Exists(file))File.Replace(temporary,file,null);else File.Move(temporary,file);}finally{if(File.Exists(temporary))File.Delete(temporary);}return Read();}finally{if(locked)mutex.ReleaseMutex();}}}
+    internal string Prepare(SidebarSnapshot expected,SidebarLayout draft)
+    {
+        Validate(draft);
+        var current=Read();
+        Require(current.Layout.revision==expected.Layout.revision&&current.Token==expected.Token,"Sidebar changed elsewhere. Cancel to load the latest layout, then edit again.");
+        Require(current.Layout.revision<Int64.MaxValue,"Sidebar revision limit reached.");
+        var raw=File.Exists(file)?AppData.Json.DeserializeObject(File.ReadAllText(file)) as Dictionary<string,object>:new Dictionary<string,object>();
+        Require(raw!=null,"Invalid sidebar data.");
+        var saved=new Dictionary<string,Dictionary<string,object>>();
+        object old;
+        if(raw.TryGetValue("items",out old)&&old is System.Collections.IEnumerable)
+            foreach(var obj in (System.Collections.IEnumerable)old)
+            {
+                var row=obj as Dictionary<string,object>;
+                if(row!=null&&row.ContainsKey("id"))saved[Convert.ToString(row["id"])]=row;
+            }
+        var rows=new List<object>();
+        foreach(var item in draft.items)
+        {
+            Dictionary<string,object> row;
+            if(!saved.TryGetValue(item.id,out row))row=new Dictionary<string,object>();
+            row["id"]=item.id;row["label"]=item.label.Trim();
+            if(item.icon==null)row.Remove("icon");else row["icon"]=item.icon;
+            if(item.iconPath==null)row.Remove("iconPath");else row["iconPath"]=item.iconPath;
+            rows.Add(row);
+        }
+        raw["schemaVersion"]=1;raw["revision"]=current.Layout.revision+1;
+        if(draft.customized)raw["customized"]=true;
+        raw["items"]=rows;raw["orders"]=draft.orders??new Dictionary<string,List<string>>();
+        string json=AppData.Json.Serialize(raw);
+        Require(Encoding.UTF8.GetByteCount(json)<=128*1024,"Sidebar layout is too large.");
+        return json;
+    }
+    internal SidebarSnapshot Save(SidebarSnapshot expected,SidebarLayout draft)
+    {
+        using(var mutex=new Mutex(false,ChecklistStore.LockName(file)))
+        {
+            bool locked;
+            try{locked=mutex.WaitOne(0);}catch(AbandonedMutexException){locked=true;}
+            Require(locked,"Sidebar is busy. Nothing was saved; try again.");
+            try
+            {
+                string json=Prepare(expected,draft);
+                string directory=Path.GetDirectoryName(file);
+                Directory.CreateDirectory(directory);
+                string temporary=Path.Combine(directory,Guid.NewGuid().ToString("N")+".tmp");
+                try{File.WriteAllText(temporary,json,new UTF8Encoding(false));if(File.Exists(file))File.Replace(temporary,file,null);else File.Move(temporary,file);}
+                finally{if(File.Exists(temporary))File.Delete(temporary);}
+                return Read();
+            }
+            finally{mutex.ReleaseMutex();}
+        }
+    }
     internal static void SelfTest(){string folder=Path.Combine(AppData.Root,".dev","Review","SidebarTests");Directory.CreateDirectory(folder);string file=Path.Combine(folder,"sidebar-test.json");if(File.Exists(file))File.Delete(file);var store=new SidebarStore(file);var initial=store.Read();Require(!File.Exists(file),"Reading defaults created a file.");var draft=Copy(initial.Layout);draft.items.Reverse();draft.items.First(i=>i.id=="media").label="My media";var first=store.Save(initial,draft);Require(new SidebarStore(file).Read().Layout.items[0].id==draft.items[0].id&&first.Layout.items.First(i=>i.id=="media").label=="My media","Order/alias did not survive reopen.");bool stale=false;try{store.Save(initial,initial.Layout);}catch{stale=true;}Require(stale&&store.Read().Layout.revision==1,"Stale save overwritten layout.");string old=File.ReadAllText(file);File.WriteAllText(file,old+" ");bool direct=false;try{store.Save(first,draft);}catch{direct=true;}Require(direct&&File.ReadAllText(file)==old+" ","Same-revision direct edit was overwritten.");var fresh=store.Read();var raw=(Dictionary<string,object>)AppData.Json.DeserializeObject(File.ReadAllText(file));raw["futureData"]="retain";((Dictionary<string,object>)((object[])raw["items"])[0])["futureItem"]=true;File.WriteAllText(file,AppData.Json.Serialize(raw));fresh=store.Read();store.Save(fresh,Copy(fresh.Layout));var retained=(Dictionary<string,object>)AppData.Json.DeserializeObject(File.ReadAllText(file));Require(retained.ContainsKey("futureData")&&((Dictionary<string,object>)((object[])retained["items"])[0]).ContainsKey("futureItem"),"Unknown fields lost.");File.WriteAllText(file,"{invalid");bool invalid=false;try{store.Save(fresh,draft);}catch{invalid=true;}Require(invalid&&File.ReadAllText(file)=="{invalid","Invalid layout overwritten.");Console.WriteLine("Sidebar store checks passed: defaults, stable-ID aliases/order, restart, revision/hash conflicts and unknown/invalid-data preservation. Live layout untouched.");}
 }
 internal sealed class SidebarEditor:Panel {
