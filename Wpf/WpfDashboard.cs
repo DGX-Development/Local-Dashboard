@@ -160,6 +160,8 @@ internal sealed partial class WpfDashboard
         if(Compact&&id!="work")SetCompact(false);
         search.Clear();section=id!="work"&&id!="reports"&&!layout.items.Any(item=>item.id==id)?layout.items.First(item=>SidebarStore.Known(item.id)).id:id;
         UpdateViewChrome();Render();
+        if(section=="work"&&(assistantWorkView||personalTasksView)&&!agentUpdatesView)
+            RefreshWorkSource(personalTasksView,false);
     }
 
     void UpdateViewChrome()
@@ -282,10 +284,10 @@ internal sealed partial class WpfDashboard
             System.Windows.Automation.AutomationProperties.SetName(favorite,(pins.Contains(entry.id)?"Remove favorite: ":"Add favorite: ")+entry.name);
             if(pins.Contains(entry.id))favorite.SetResourceReference(Control.ForegroundProperty,"DashboardAccent");
             targets.Children.Add(favorite);
-            var image=EntryIcon(entry);
+            var image=EntryIcon(entry,profile);
             if(image!=null)
             {
-                var artwork=new Image{Source=image,Width=40,Height=40,Stretch=Stretch.Uniform,Margin=new Thickness(0,0,12,0)};
+                var artwork=new Image{Tag="entry-artwork",Source=image,Width=40,Height=40,Stretch=Stretch.Uniform,Margin=new Thickness(0,0,12,0)};
                 RenderOptions.SetBitmapScalingMode(artwork,BitmapScalingMode.HighQuality);
                 content.Children.Add(artwork);
             }
@@ -293,6 +295,33 @@ internal sealed partial class WpfDashboard
             row.Child=content;
             rows.Children.Add(row);
         }
+    }
+
+    readonly System.Collections.Generic.HashSet<Uri> pendingWebsiteIcons=new System.Collections.Generic.HashSet<Uri>();
+
+    void FetchSavedWebsiteIcons(System.Collections.Generic.Dictionary<string,Uri> previous,string selectedId)
+    {
+        var origins=entries.Where(entry=>entry.id==selectedId||!previous.ContainsKey(entry.id)||
+                !Equals(previous[entry.id],WebsiteIcons.Origin(entry)))
+            .Select(WebsiteIcons.Origin).Where(origin=>origin!=null).Distinct()
+            .Where(origin=>WebsiteIcons.Cached(profile,origin)==null&&pendingWebsiteIcons.Add(origin)).ToArray();
+        if(origins.Length==0)return;
+        System.Threading.Tasks.Task.Run(()=>{
+            foreach(var origin in origins)
+            {
+                var icon=WebsiteIcons.Fetch(profile,origin,usePublicIndex:true);
+                window.Dispatcher.BeginInvoke(new Action(()=>{
+                    pendingWebsiteIcons.Remove(origin);
+                    if(icon==null)return;
+                    var ids=new System.Collections.Generic.HashSet<string>(entries.Where(entry=>Equals(WebsiteIcons.Origin(entry),origin)).Select(entry=>entry.id));
+                    foreach(var row in rows.Children.OfType<Border>().Where(row=>row.Tag is string&&ids.Contains((string)row.Tag)))
+                    {
+                        var artwork=((DockPanel)row.Child).Children.OfType<Image>().FirstOrDefault(image=>Equals(image.Tag,"entry-artwork"));
+                        if(artwork!=null)artwork.Source=icon;
+                    }
+                }));
+            }
+        });
     }
 
     void CaptureShell(string profile,string file,int width,int height)

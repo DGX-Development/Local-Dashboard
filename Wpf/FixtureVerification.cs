@@ -85,7 +85,7 @@ internal sealed partial class WpfDashboard
         File.WriteAllText(source,sourceBefore.Replace("Twitch alerts","Refreshed alerts"));RefreshWorkAndWait();
         if(!Visuals<TextBlock>(rows).Any(t=>t.Text=="1. Refreshed alerts"))throw new Exception("Refresh did not reread source.");
         ClickWork("Checklists");
-        var add=Visuals<TextBox>(rows).Single(t=>System.Windows.Automation.AutomationProperties.GetName(t)=="New checklist item");add.Text="Inline added task";ClickWork("Add");
+        var add=Visuals<TextBox>(rows).Single(t=>System.Windows.Automation.AutomationProperties.GetName(t)=="New checklist item");add.Text="Inline added task";ClickWork("Add checklist item");
         var added=store.Read().items.Single(i=>i.title=="Inline added task");
         var itemRow=rows.Children.OfType<StackPanel>().Single(r=>Equals(r.Tag,added.id));ClickIn(itemRow,"Edit");
         Visuals<TextBox>(itemRow).Single(t=>System.Windows.Automation.AutomationProperties.GetName(t)=="Checklist title").Text="Inline edited task";

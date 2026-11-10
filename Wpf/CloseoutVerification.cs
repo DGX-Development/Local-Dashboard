@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Windows.Media;
 using System;
 using System.IO;
 using System.Linq;
@@ -54,7 +56,33 @@ internal sealed partial class WpfDashboard {
             var cache=WorkSources.Cached(profile,source);
             CloseoutCheck(cache!=null&&cache.text==(personal?"Personal":"Agent")+" selected sample","saving the task location loads the selected file without Refresh");
         }
+        var agent=WorkSources.Read(profile);
+        var personalSource=WorkSources.Read(profile,true);
+        File.WriteAllText(agent.path,"Updated Agent tasks from outside Dashboard");
+        File.WriteAllText(personalSource.path,"Updated Personal tasks from outside Dashboard");
         assistantWorkView=true;personalTasksView=false;agentUpdatesView=false;Select("work");
+        var tabs=Find<StackPanel>("WorkNavigation").Children.OfType<WrapPanel>().First();
+        ((Button)tabs.Children[1]).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        var automaticFrame=new System.Windows.Threading.DispatcherFrame();
+        var automaticDeadline=DateTime.UtcNow.AddSeconds(9);
+        var automaticTimer=new System.Windows.Threading.DispatcherTimer{Interval=TimeSpan.FromMilliseconds(30)};
+        automaticTimer.Tick+=(s,e)=>{
+            if(DateTime.UtcNow>=automaticDeadline||
+                (WorkSources.Cached(profile,agent).text.StartsWith("Updated Agent")&&
+                 WorkSources.Cached(profile,personalSource).text.StartsWith("Updated Personal")))automaticFrame.Continue=false;
+        };
+        automaticTimer.Start();
+        try{System.Windows.Threading.Dispatcher.PushFrame(automaticFrame);}finally{automaticTimer.Stop();}
+        CloseoutCheck(WorkSources.Cached(profile,agent).text.StartsWith("Updated Agent")&&
+            WorkSources.Cached(profile,personalSource).text.StartsWith("Updated Personal"),
+            "opening Tasks and switching tabs automatically reload both externally edited text lists");
+        var checklist=new ChecklistStore(ChecklistLocation.PathFor(profile),entries);
+        var initial=checklist.Read();
+        checklist.Upsert(new WorkPatch{expectedRevision=initial.revision,id="automatic-refresh-test",title="Checklist item added outside the view"});
+        tabs=Find<StackPanel>("WorkNavigation").Children.OfType<WrapPanel>().First();
+        ((Button)tabs.Children[2]).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        CloseoutCheck(rows.Children.OfType<StackPanel>().Any(row=>Equals(row.Tag,"automatic-refresh-test")),
+            "opening Checklists rereads its current file");
         var taskRow=Find<StackPanel>("WorkNavigation").Children.OfType<WrapPanel>().First();
         CloseoutCheck(System.Windows.Automation.AutomationProperties.GetName((Button)taskRow.Children[3])=="Refresh","Refresh follows the three task selectors");
         Select("software");
@@ -90,6 +118,150 @@ internal sealed partial class WpfDashboard {
             SafeBackupVerification.Run(profile);
             VerifyDeepTaskCache();
             VerifyTaskSelectionLoads();
+            var renumbered=new StackPanel();
+            string gapped="1. First task\n   First description.\n\n6. Remaining task\n   Second description.";
+            RenderReadableTaskText(gapped,renumbered,true);
+            Capture(renumbered,Path.Combine(profile,"task-numbering.png"),550,250);
+            CloseoutCheck(Visuals<TextBlock>(renumbered).Any(label=>label.Text=="2. Remaining task")&&
+                ReadableTasks.Parse(gapped).Blocks.Any(block=>block.Number=="6"),
+                "visible task numbering closes gaps and retains source identifiers");
+            var website=new Entry{targets=new List<LinkTarget>{new LinkTarget{kind="web",url="https://sample.invalid/path?private=value"}}};
+            var origin=WebsiteIcons.Origin(website);
+            CloseoutCheck(origin.AbsoluteUri=="https://sample.invalid/","website icon lookup uses the origin without the link path or query");
+            byte[] fixtureIcon;
+            using(var stream=new MemoryStream())
+            {
+                var png=new System.Windows.Media.Imaging.PngBitmapEncoder();
+                png.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(System.Windows.Media.Imaging.BitmapSource.Create(
+                    1,1,96,96,PixelFormats.Bgra32,null,new byte[]{20,130,220,255},4)));
+                png.Save(stream);
+                fixtureIcon=stream.ToArray();
+            }
+            var requests=new List<string>();
+            var favicon=WebsiteIcons.Fetch(profile,origin,uri=>{
+                requests.Add(uri.AbsoluteUri);
+                if(uri==origin)return System.Text.Encoding.UTF8.GetBytes("<link rel='icon' href='https://other.invalid/icon.png'><link href='/actual.png' rel='shortcut icon'>");
+                return uri.AbsolutePath=="/actual.png"?fixtureIcon:null;
+            });
+            CloseoutCheck(favicon!=null&&WebsiteIcons.Cached(profile,origin)!=null&&requests.SequenceEqual(new[]{
+                "https://sample.invalid/favicon.ico","https://sample.invalid/","https://sample.invalid/actual.png"}),
+                "favicons fall back to the site icon, skip other origins and persist in the cache");
+            Select("everyday");
+            presentDialog=dialog=>{
+                var surface=(UIElement)dialog.Content;
+                Capture(surface,Path.Combine(profile,"website-icon-action.png"),1164,811);
+                var list=Visuals<ListBox>(surface).Single(item=>System.Windows.Automation.AutomationProperties.GetName(item)=="Dashboard entries");
+                var entry=(Entry)list.SelectedItem;
+                entry.iconGlyph="folder";
+                Visuals<TextBox>(surface).Single(field=>System.Windows.Automation.AutomationProperties.GetName(field)=="Website address").Text=origin.AbsoluteUri;
+                ClickIn(surface,"Use website icon");
+                Capture(surface,Path.Combine(profile,"website-icon-action.png"),1000,600);
+                var status=Visuals<TextBlock>(surface).Single(label=>label.Text=="Website icon ready. Choose Save to apply it.");
+                var address=Visuals<TextBox>(surface).Single(field=>System.Windows.Automation.AutomationProperties.GetName(field)=="Website address");
+                CloseoutCheck(status.TranslatePoint(new Point(0,0),surface).Y<list.TranslatePoint(new Point(0,0),surface).Y&&
+                    !Visuals<ScrollViewer>(surface).Any(scroll=>scroll.IsAncestorOf(address)||scroll.IsAncestorOf(status)),
+                    "icon status is above the links list and the link fields stay outside scroll areas");
+                CloseoutCheck(entry.iconGlyph==null&&Visuals<TextBlock>(surface).Any(label=>label.Text=="Website icon ready. Choose Save to apply it."),
+                    "Use website icon previews a found icon and changes the draft selection");
+                dialog.Close();return false;
+            };
+            EditCatalog();
+            Select("software");
+            if(Environment.GetEnvironmentVariable("LOCAL_DASHBOARD_VERIFY_LIVE_ICONS")=="1")
+            {
+                foreach(var host in new[]{"pepsi.com","dairyqueen.com"})
+                {
+                    Select("everyday");
+                    string expected="https://"+host+"/";
+                    var address=new Uri(expected);
+                    CloseoutCheck(WebsiteIcons.Cached(profile,address)==null,host+" starts without a cached icon");
+                    presentDialog=dialog=>{
+                        var surface=(UIElement)dialog.Content;
+                        Capture(surface,Path.Combine(profile,"auto-icon-editor.png"),1164,811);
+                        Visuals<TextBox>(surface).Single(field=>System.Windows.Automation.AutomationProperties.GetName(field)=="Website address").Text=expected;
+                        ClickIn(surface,"Save");
+                        dialog.Close();
+                        return true;
+                    };
+                    EditCatalog();
+                    var frame=new System.Windows.Threading.DispatcherFrame();
+                    var deadline=DateTime.UtcNow.AddSeconds(25);
+                    var timer=new System.Windows.Threading.DispatcherTimer{Interval=TimeSpan.FromMilliseconds(35)};
+                    timer.Tick+=(sender,args)=>{
+                        if(DateTime.UtcNow>=deadline||!pendingWebsiteIcons.Contains(address))frame.Continue=false;
+                    };
+                    timer.Start();
+                    try{System.Windows.Threading.Dispatcher.PushFrame(frame);}finally{timer.Stop();}
+                    var saved=entries.Single(item=>item.targets.Any(target=>target.url==expected));
+                    var artwork=Visuals<Image>(rows).Single(image=>Equals(image.Tag,"entry-artwork"));
+                    CloseoutCheck(WebsiteIcons.Origin(saved)!=null&&WebsiteIcons.Cached(profile,address)!=null&&
+                        artwork.Source is System.Windows.Media.Imaging.BitmapSource,
+                        host+" downloads, caches and displays its icon after Save without an icon button click");
+                    CaptureShell(profile,"auto-icon-"+host+".png",1100,780);
+                }
+                foreach(var host in new[]{"robertshare.com","github.com"})
+                {
+                    Select("everyday");
+                    string expected="https://"+host+"/";
+                    presentDialog=dialog=>{
+                        var surface=(UIElement)dialog.Content;
+                        Capture(surface,Path.Combine(profile,"live-icon-"+host+".png"),1164,811);
+                        var list=Visuals<ListBox>(surface).Single(item=>System.Windows.Automation.AutomationProperties.GetName(item)=="Dashboard entries");
+                        ((Entry)list.SelectedItem).iconGlyph="folder";
+                        Visuals<TextBox>(surface).Single(field=>System.Windows.Automation.AutomationProperties.GetName(field)=="Website address").Text=expected;
+                        ClickIn(surface,"Use website icon");
+                        var frame=new System.Windows.Threading.DispatcherFrame();
+                        var deadline=DateTime.UtcNow.AddSeconds(25);
+                        var timer=new System.Windows.Threading.DispatcherTimer{Interval=TimeSpan.FromMilliseconds(35)};
+                        timer.Tick+=(sender,args)=>{
+                            if(DateTime.UtcNow>=deadline||!Visuals<TextBlock>(surface).Any(label=>label.Text=="Looking for the website icon…"))frame.Continue=false;
+                        };
+                        timer.Start();
+                        try{System.Windows.Threading.Dispatcher.PushFrame(frame);}finally{timer.Stop();}
+                        Capture(surface,Path.Combine(profile,"live-icon-"+host+".png"),1164,811);
+                        CloseoutCheck(Visuals<TextBlock>(surface).Any(label=>label.Text=="Website icon ready. Choose Save to apply it."),
+                            host+" previews a live website icon from a cold cache");
+                        ClickIn(surface,"Save");
+                        dialog.Close();
+                        return true;
+                    };
+                    EditCatalog();
+                    var saved=entries.Single(item=>item.targets.Any(target=>target.url==expected));
+                    CloseoutCheck(WebsiteIcons.Origin(saved)!=null&&WebsiteIcons.Cached(profile,new Uri(expected))!=null,
+                        host+" saves and reloads its downloaded icon");
+                }
+                Select("software");
+            }
+            website.iconGlyph="folder";
+            CloseoutCheck(WebsiteIcons.Origin(website)==null,"a chosen built-in icon takes precedence over the favicon");
+            website.iconGlyph=null;website.iconPath="custom.png";
+            CloseoutCheck(WebsiteIcons.Origin(website)==null,"a chosen local image takes precedence over the favicon");
+            CloseoutCheck(WebsiteIcons.Fetch(profile,new Uri("https://missing.invalid/"),uri=>null)==null,"unavailable website icons retain the fallback");
+
+            window.Width=1180;window.Height=850;
+            presentDialog=dialog=>{
+                var surface=(UIElement)dialog.Content;
+                var root=(DependencyObject)surface;
+                for(int index=0;index<4;index++)
+                {
+                    Capture(surface,Path.Combine(profile,"editor-roomier.png"),1164,811);
+                    ClickIn(root,"Add category");
+                    Visuals<TextBox>(root).Single(field=>System.Windows.Automation.AutomationProperties.GetName(field)=="Category name").Text="Sample category "+(index+1);
+                }
+                Capture(surface,Path.Combine(profile,"editor-roomier.png"),1164,811);
+                var list=Visuals<ListBox>(root).Single(item=>System.Windows.Automation.AutomationProperties.GetName(item)=="Section");
+                var viewport=Visuals<ScrollViewer>(list).Single();
+                CloseoutCheck(dialog.Width==1180&&dialog.Height==850&&list.Items.Count>=7&&viewport.ScrollableHeight<1,
+                    "editor matches the main window and fits at least seven categories at the tested size");
+                for(int index=0;index<5;index++)ClickIn(root,"Add category");
+                Capture(surface,Path.Combine(profile,"editor-roomier-scroll.png"),1164,811);
+                viewport.ScrollToBottom();viewport.UpdateLayout();
+                var name=Visuals<TextBox>(root).Single(field=>System.Windows.Automation.AutomationProperties.GetName(field)=="Category name");
+                var save=Visuals<Button>(root).Single(button=>Equals(button.Content,"Save"));
+                CloseoutCheck(viewport.VerticalOffset>0&&name.TranslatePoint(new Point(0,name.ActualHeight),surface).Y<
+                    save.TranslatePoint(new Point(0,0),surface).Y,"overflow scrolls only the categories and keeps the controls above Save");
+                dialog.Close();return false;
+            };EditCatalog();
             CloseoutCheck(Equals(((Image)Find<MenuItem>("BackupMenu").Icon).Tag,"config-backup")&&Equals(((Image)Find<MenuItem>("RestoreMenu").Icon).Tag,"config-restore"),"File menu uses the approved backup and restore icon pair");
             string preview=SetupTaskPreview("# Project tasks\nUpdated: November 9\nKeep Dashboard first until accepted.\n## Current projects\n1. Test the preview\n   Use a sample.");
             CloseoutCheck(preview=="1. Test the preview","setup preview shows task names without file headings or agent instructions");
@@ -161,6 +333,21 @@ internal sealed partial class WpfDashboard {
                 CloseoutCheck(list.SelectedItem!=null,"editor opens with an actual current item selected");
                 ClickIn(root,"Add link");
                 CloseoutCheck(list.SelectedItem is Entry&&((Entry)list.SelectedItem).name=="New link","Add selects an editable new link");
+                var surface=(UIElement)dialog.Content;
+                Capture(surface,Path.Combine(profile,"editor-links-roomier.png"),1164,811);
+                var nameField=Visuals<TextBox>(root).Single(field=>System.Windows.Automation.AutomationProperties.GetName(field)=="Name");
+                for(int index=0;index<7;index++)
+                {
+                    nameField.Text="Draft "+index;
+                    ClickIn(root,"Add link");
+                }
+                Capture(surface,Path.Combine(profile,"editor-links-roomier.png"),1164,811);
+                var viewport=Visuals<ScrollViewer>(list).Single();
+                var addedRow=(ListBoxItem)list.ItemContainerGenerator.ContainerFromItem(list.SelectedItem);
+                var addedTop=addedRow.TranslatePoint(new Point(0,0),viewport).Y;
+                CloseoutCheck(list.ActualHeight>250&&viewport.VerticalOffset>0&&addedTop>=0&&
+                    addedTop+addedRow.ActualHeight<=viewport.ActualHeight&&nameField.ActualHeight>0,
+                    "links list shows more rows and scrolls the newly selected link into view");
                 Capture(dialog.Content as UIElement,Path.Combine(profile,"closeout-editor.png"),844,581);
                 dialog.Close();return false;
             };EditCatalog();

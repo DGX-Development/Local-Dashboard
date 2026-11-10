@@ -16,7 +16,7 @@ internal sealed partial class WpfDashboard {
         if(section=="work"&&!agentUpdatesView&&(personal?personalTasksView:assistantWorkView))RenderCompact(true);
     }
 
-    async void RefreshWorkSource(bool personal)
+    async void RefreshWorkSource(bool personal,bool manual=true)
     {
         int index=personal?1:0;
         string token=null;
@@ -31,7 +31,7 @@ internal sealed partial class WpfDashboard {
                 SetReadStatus(personal,"Choose a file on this PC in Settings > Tasks to refresh this list.");
                 RenderTaskRead(personal);return;
             }
-            SetReadStatus(personal,"Loading the selected file…");
+            if(manual)SetReadStatus(personal,"Loading the selected file…");
             RenderTaskRead(personal);
             taskReadTokens[index]=token;
             taskReads[index]=read=Task.Run(()=>WorkSources.Fetch(choice,profile));
@@ -47,7 +47,7 @@ internal sealed partial class WpfDashboard {
             {
                 var cache=await read;
                 WorkSources.Store(profile,choice,token,cache,personal);
-                SetReadStatus(personal,"Read succeeded. The source file was not changed.");
+                SetReadStatus(personal,manual?"Read succeeded. The source file was not changed.":"");
             }
         }
         catch(TaskSourceNotSelectedException){SetReadStatus(personal,"");}
@@ -68,9 +68,28 @@ internal sealed partial class WpfDashboard {
         body.Children.Add(WorkRule());
         AddTaskSource(body,true,showPreview,labels==null?null:labels[1],out validatePersonal,out savePersonal);
         body.Children.Add(WorkRule());
-        AddTaskHeading(body,TaskLabel(false),labels==null?null:labels[2]);
-        body.Children.Add(WorkText("Dashboard saves your checklist automatically."));
-        saveSource=()=>{validateAgent();validatePersonal();saveAgent();savePersonal();};
+        string checklistFile=null,checklistToken=null;
+        var checklistLocation=WorkText("Dashboard saves your checklist automatically.");
+        var chooseChecklist=StandardAction(ActionButton("Choose checklist file",()=>Protect(()=>{
+            var picker=new OpenFileDialog{Title="Choose checklist file",Filter="Dashboard checklist|*.json",CheckFileExists=true};
+            if(picker.ShowDialog(window)!=true)return;
+            var file=ChecklistLocation.Validate(profile,picker.FileName);
+            new ChecklistStore(file,entries).Read();
+            var token=ChecklistLocation.Token(file);
+            if(token==null)throw new IOException("Choose an existing checklist file.");
+            checklistFile=file;
+            checklistToken=token;
+            checklistLocation.Text=Path.GetFileName(file)+" will be used after Save.";
+        })));
+        var expectedChecklist=ChecklistLocation.Token(ChecklistLocation.Config(profile));
+        AddTaskHeading(body,TaskLabel(false),labels==null?null:labels[2],showPreview?null:chooseChecklist);
+        body.Children.Add(checklistLocation);
+        saveSource=()=>{
+            validateAgent();validatePersonal();
+            if(checklistFile!=null)
+                ChecklistLocation.Choose(profile,checklistFile,expectedChecklist,ChecklistLocation.Token(ChecklistLocation.PathFor(profile)),checklistToken,entries);
+            saveAgent();savePersonal();
+        };
         return body;
     }
 
@@ -79,17 +98,19 @@ internal sealed partial class WpfDashboard {
         return new TextBlock{Text=label,FontSize=20,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,10,0,4)};
     }
 
-    void AddTaskHeading(StackPanel body,string label,TextBox name)
+    void AddTaskHeading(StackPanel body,string label,TextBox name,Button extra=null)
     {
         var heading=TaskSourceHeading(label);
-        if(name==null){body.Children.Add(heading);return;}
+        if(name==null&&extra==null){body.Children.Add(heading);return;}
         var row=new DockPanel{Margin=new Thickness(0,8,0,2)};
         var rename=StandardAction(ActionButton("Rename",()=>{name.Visibility=Visibility.Visible;name.Focus();name.SelectAll();}));
         rename.HorizontalAlignment=HorizontalAlignment.Right;
         System.Windows.Automation.AutomationProperties.SetName(rename,"Rename "+label);
-        DockPanel.SetDock(rename,Dock.Right);row.Children.Add(rename);
+        if(extra!=null){DockPanel.SetDock(extra,Dock.Right);row.Children.Add(extra);}
+        if(name!=null){DockPanel.SetDock(rename,Dock.Right);row.Children.Add(rename);}
         heading.Margin=new Thickness(0);heading.VerticalAlignment=VerticalAlignment.Center;
         row.Children.Add(heading);body.Children.Add(row);
+        if(name==null)return;
         name.Visibility=Visibility.Collapsed;
         name.TextChanged+=(sender,args)=>heading.Text=String.IsNullOrWhiteSpace(name.Text)?label:name.Text.Trim();
         body.Children.Add(name);

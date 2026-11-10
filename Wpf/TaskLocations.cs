@@ -33,7 +33,7 @@ internal static class ChecklistLocation {
             foreach(string file in new[]{Config(profile),original,destination}.Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(p=>p,StringComparer.OrdinalIgnoreCase)){
                 var mutex=new Mutex(false,ChecklistStore.LockName(file));bool held=false;try{held=mutex.WaitOne(0);}catch(AbandonedMutexException){held=true;}if(!held){mutex.Dispose();throw new IOException("A checklist is being edited. Try again.");}locks.Add(mutex);
             }
-            if(File.Exists(Path.Combine(profile,".local","restore-pending.json")))throw new IOException("Finish recovering the interrupted configuration restore before changing the checklist location.");
+            if(File.Exists(Path.Combine(profile,".local","restore-pending.json"))||File.Exists(Path.Combine(profile,".local","safe-restore-pending.json")))throw new IOException("Finish recovering the interrupted configuration restore before changing the checklist location.");
             if(Token(Config(profile))!=expectedConfig||Token(original)!=expectedCurrent||Token(destination)!=expectedDestination)throw new IOException("A checklist or its location changed. Reopen Settings; no existing tasks were overwritten.");
             new ChecklistStore(original,entries).Read();new ChecklistStore(destination,entries).Read();
             if(!File.Exists(destination)){

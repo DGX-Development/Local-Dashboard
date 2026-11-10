@@ -13,6 +13,7 @@ internal sealed partial class WpfDashboard
     void EditCatalog()
     {
         var draft=new CatalogDraft(Path.Combine(profile,"catalog.json"));
+        var previousIcons=draft.Entries.ToDictionary(entry=>entry.id,WebsiteIcons.Origin);
         var snapshot=sidebarStore.Read();
         var groups=SidebarStore.Copy(snapshot.Layout);
         foreach(var item in layout.items.Where(item=>!groups.items.Any(saved=>saved.id==item.id)))
@@ -23,17 +24,23 @@ internal sealed partial class WpfDashboard
         DockPanel.SetDock(title,Dock.Top);body.Children.Add(title);
         var footer=new WrapPanel{HorizontalAlignment=HorizontalAlignment.Right};
         DockPanel.SetDock(footer,Dock.Bottom);body.Children.Add(footer);
-        var left=new Border{Width=286,Padding=new Thickness(0,0,20,0),Margin=new Thickness(0,0,22,12),BorderThickness=new Thickness(0,0,1,0)};
+        var left=new Border{Width=306,Padding=new Thickness(0,0,20,0),Margin=new Thickness(0,0,22,12),BorderThickness=new Thickness(0,0,1,0)};
         left.SetResourceReference(Border.BorderBrushProperty,"Theme4A4A4A");
         DockPanel.SetDock(left,Dock.Left);body.Children.Add(left);
-        var picker=new ListBox{MaxHeight=184,SelectedValuePath="id",ItemTemplate=ReorderTemplate("label")};
+        var picker=new ListBox{SelectedValuePath="id",ItemTemplate=ReorderTemplate("label")};
+        ScrollViewer.SetVerticalScrollBarVisibility(picker,ScrollBarVisibility.Auto);
         System.Windows.Automation.AutomationProperties.SetName(picker,"Section");
-        var categoryPanel=new StackPanel{Margin=new Thickness(0,0,0,12)};
-        left.Child=new ScrollViewer{Content=categoryPanel,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled};
-        categoryPanel.Children.Add(new TextBlock{Text="Categories",FontSize=22,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,8)});
+        var categoryPanel=new DockPanel{Margin=new Thickness(0,0,0,12)};
+        left.Child=categoryPanel;
+        var categoryHeading=new TextBlock{Text="Categories",FontSize=22,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,8)};
+        DockPanel.SetDock(categoryHeading,Dock.Top);
+        categoryPanel.Children.Add(categoryHeading);
+        var categoryControls=new StackPanel{Margin=new Thickness(0,12,0,0)};
+        DockPanel.SetDock(categoryControls,Dock.Bottom);
+        categoryPanel.Children.Add(categoryControls);
         categoryPanel.Children.Add(picker);
-        var categoryDetails=new StackPanel{Margin=new Thickness(0,10,0,0)};
-        categoryPanel.Children.Add(categoryDetails);
+        var categoryDetails=new StackPanel();
+        categoryControls.Children.Add(categoryDetails);
         var categoryName=new TextBox{MaxLength=60};
         Field(categoryDetails,"Category name",categoryName);
         var categoryIconRow=new WrapPanel();
@@ -45,7 +52,7 @@ internal sealed partial class WpfDashboard
         var addCategory=StandardAction(new Button{Content="Add category",Margin=new Thickness(0,0,8,8)});
         var removeCategory=StandardAction(new Button{Content="Remove category",Margin=new Thickness(0,0,0,8)});
         categoryActions.Children.Add(addCategory);categoryActions.Children.Add(removeCategory);
-        categoryPanel.Children.Add(categoryActions);
+        categoryControls.Children.Add(categoryActions);
         var right=new DockPanel{Margin=new Thickness(0,0,0,12)};
         body.Children.Add(right);
         var linksHeading=new TextBlock{FontSize=22,FontWeight=FontWeights.SemiBold,TextWrapping=TextWrapping.Wrap};
@@ -57,13 +64,22 @@ internal sealed partial class WpfDashboard
         var addLink=StandardAction(new Button{Content="Add link"});
         var removeLink=StandardAction(new Button{Content="Remove link"});
         linkActions.Children.Add(addLink);linkActions.Children.Add(removeLink);
-        var list=new ListBox{ItemTemplate=ReorderTemplate("name"),MaxHeight=150,Margin=new Thickness(0,0,0,14)};
-        System.Windows.Automation.AutomationProperties.SetName(list,"Dashboard entries");
-        DockPanel.SetDock(list,Dock.Top);right.Children.Add(list);
+        var websiteIconStatus=WorkText("");
+        websiteIconStatus.Visibility=Visibility.Collapsed;
+        DockPanel.SetDock(websiteIconStatus,Dock.Top);right.Children.Add(websiteIconStatus);
         var empty=WorkText("");
         DockPanel.SetDock(empty,Dock.Top);right.Children.Add(empty);
+        var linkEditor=new Grid();
+        linkEditor.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});
+        linkEditor.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
+        right.Children.Add(linkEditor);
+        var list=new ListBox{ItemTemplate=ReorderTemplate("name"),Margin=new Thickness(0,0,0,14)};
+        ScrollViewer.SetVerticalScrollBarVisibility(list,ScrollBarVisibility.Auto);
+        System.Windows.Automation.AutomationProperties.SetName(list,"Dashboard entries");
+        linkEditor.Children.Add(list);
         var fields=new StackPanel();
-        right.Children.Add(new ScrollViewer{Content=fields,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled});
+        Grid.SetRow(fields,1);
+        linkEditor.Children.Add(fields);
         var name=new TextBox{MaxLength=120};
         Field(fields,"Name",name);
         fields.Children.Add(new TextBlock{Text="Opens"});
@@ -73,7 +89,7 @@ internal sealed partial class WpfDashboard
         fields.Children.Add(kind);
         var destinationLabel=new TextBlock{Text="Destinations"};
         fields.Children.Add(destinationLabel);
-        var destinations=new ListBox{DisplayMemberPath="label",MaxHeight=180,Margin=new Thickness(0,5,0,8)};
+        var destinations=new ListBox{DisplayMemberPath="label",MaxHeight=72,Margin=new Thickness(0,5,0,8)};
         System.Windows.Automation.AutomationProperties.SetName(destinations,"Destination");
         fields.Children.Add(destinations);
         var location=new TextBox();
@@ -83,9 +99,15 @@ internal sealed partial class WpfDashboard
         var locationLabel=Field(fields,"Address or location",location,browseLocation);
         var linkIcon=new Image{Width=24,Height=24,Margin=new Thickness(0,0,8,0)};
         var changeLinkIcon=StandardAction(new Button{Content="Change link icon"});
+
+        int websiteIconRequest=0;
+        var useWebsiteIcon=StandardAction(new Button{Content="Use website icon",Visibility=Visibility.Collapsed,ToolTip="Checks the site first. If needed, sends its domain to a public icon index."});
         fields.Children.Add(WorkText("Link icon",true));
-        var linkIconRow=new WrapPanel();linkIconRow.Children.Add(linkIcon);linkIconRow.Children.Add(changeLinkIcon);fields.Children.Add(linkIconRow);
-        var dialog=Dialog("Edit Dashboard",920,720,body);
+        var linkIconRow=new WrapPanel();linkIconRow.Children.Add(linkIcon);linkIconRow.Children.Add(changeLinkIcon);linkIconRow.Children.Add(useWebsiteIcon);fields.Children.Add(linkIconRow);
+
+        double ownerWidth=window.ActualWidth>0?window.ActualWidth:window.Width;
+        double ownerHeight=window.ActualHeight>0?window.ActualHeight:window.Height;
+        var dialog=Dialog("Edit Dashboard",ownerWidth,ownerHeight,body);
         Entry selected=null;
         LinkTarget target=null;
         bool loading=false;
@@ -130,15 +152,18 @@ internal sealed partial class WpfDashboard
             location.Text=target==null?"":target.kind=="web"?target.url:target.path;
             location.IsEnabled=target!=null;
             browseLocation.Visibility=target!=null&&target.kind!="web"?Visibility.Visible:Visibility.Collapsed;
+            useWebsiteIcon.Visibility=selected!=null&&selected.targets.Count>0&&selected.targets[0].kind=="web"?Visibility.Visible:Visibility.Collapsed;
         };
         list.SelectionChanged+=(s,e)=>{
             loading=true;
+            websiteIconRequest++;
+            websiteIconStatus.Visibility=Visibility.Collapsed;
             selected=list.SelectedItem as Entry;
             removeLink.IsEnabled=selected!=null;
             removeLink.Visibility=fields.Visibility=selected!=null?Visibility.Visible:Visibility.Collapsed;
             name.IsEnabled=changeLinkIcon.IsEnabled=selected!=null;
             name.Text=selected==null?"":selected.name;
-            linkIcon.Source=selected==null?null:EntryIcon(selected);
+            linkIcon.Source=selected==null?null:EntryIcon(selected,profile);
             destinations.ItemsSource=selected==null?null:selected.targets;
             destinations.SelectedIndex=selected!=null&&selected.targets.Count>0?0:-1;
             showTarget();
@@ -162,9 +187,42 @@ internal sealed partial class WpfDashboard
         changeLinkIcon.Click+=(s,e)=>Protect(()=>{
             var entry=selected;
             if(entry!=null)ChooseDashboardIcon(dialog,entry.iconGlyph,entry.iconPath,(glyph,path)=>{
-                entry.iconGlyph=glyph;entry.iconPath=path;entry.iconAsset=null;linkIcon.Source=EntryIcon(entry);
+                websiteIconRequest++;
+                websiteIconStatus.Visibility=Visibility.Collapsed;
+                entry.iconGlyph=glyph;entry.iconPath=path;entry.iconAsset=null;linkIcon.Source=EntryIcon(entry,profile);
             });
         });
+        useWebsiteIcon.Click+=async(s,e)=>{
+            var entry=selected;
+            if(entry==null)return;
+            var origin=WebsiteIcons.Origin(new Entry{targets=entry.targets});
+            websiteIconStatus.Visibility=Visibility.Visible;
+            if(origin==null)
+            {
+                websiteIconStatus.Text="Enter a website address first.";
+                return;
+            }
+            int request=++websiteIconRequest;
+            var icon=WebsiteIcons.Cached(profile,origin);
+            if(icon==null)
+            {
+                websiteIconStatus.Text="Looking for the website icon…";
+                try{icon=await System.Threading.Tasks.Task.Run(()=>WebsiteIcons.Fetch(profile,origin,usePublicIndex:true));}
+                catch(Exception){icon=null;}
+                if((!dialog.IsVisible&&!nonWindowedVerification)||request!=websiteIconRequest||selected!=entry||
+                    !Equals(origin,WebsiteIcons.Origin(new Entry{targets=entry.targets})))return;
+            }
+            if(icon==null||WebsiteIcons.Cached(profile,origin)==null)
+            {
+                websiteIconStatus.Text="Couldn't load the website icon. Your current icon is kept.";
+                return;
+            }
+            entry.iconGlyph=null;
+            entry.iconPath=null;
+            entry.iconAsset=null;
+            linkIcon.Source=icon;
+            websiteIconStatus.Text="Website icon ready. Choose Save to apply it.";
+        };
         removeDestination.Click+=(s,e)=>{
             if(selected==null||target==null||selected.targets.Count<=1)return;
             if(MessageBox.Show(dialog,"Remove this destination from the link?","Remove destination",MessageBoxButton.YesNo,MessageBoxImage.Question)!=MessageBoxResult.Yes)return;
@@ -178,6 +236,8 @@ internal sealed partial class WpfDashboard
         };
         location.TextChanged+=(s,e)=>{
             if(loading||target==null)return;
+            websiteIconRequest++;
+            websiteIconStatus.Visibility=Visibility.Collapsed;
             if(target.kind=="web")target.url=location.Text.Trim();
             else target.path=location.Text.Trim();
         };
@@ -232,6 +292,8 @@ internal sealed partial class WpfDashboard
             if(active==null)return;
             var added=draft.Add(active.id,"folder");
             picker.SelectedItem=active;refreshEntries();list.SelectedItem=added;
+            list.UpdateLayout();
+            list.ScrollIntoView(added);
             name.Focus();name.SelectAll();
         });
         removeLink.Click+=(s,e)=>{
@@ -274,6 +336,8 @@ internal sealed partial class WpfDashboard
         {
             if(activeCategory!=null&&categoriesChanged)section=activeCategory.id;
             Reload();
+            if(!nonWindowedVerification||Environment.GetEnvironmentVariable("LOCAL_DASHBOARD_VERIFY_LIVE_ICONS")=="1")
+                FetchSavedWebsiteIcons(previousIcons,selected==null?null:selected.id);
         }
     }
 

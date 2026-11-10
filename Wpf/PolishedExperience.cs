@@ -104,7 +104,7 @@ internal sealed partial class WpfDashboard {
     void ShowAbout(){
         var root=new DockPanel{Margin=new Thickness(28)};var close=StandardAction(new Button{Content="Close",IsCancel=true,IsDefault=true,HorizontalAlignment=HorizontalAlignment.Right});close.Margin=new Thickness(0,18,0,0);DockPanel.SetDock(close,Dock.Bottom);root.Children.Add(close);
         var body=new StackPanel();root.Children.Add(new ScrollViewer{Content=body,VerticalScrollBarVisibility=ScrollBarVisibility.Auto});
-        var header=new DockPanel{Margin=new Thickness(0,0,0,24)};header.Children.Add(new Image{Source=window.Icon,Width=64,Height=64,Margin=new Thickness(0,0,18,0)});var identity=new StackPanel{VerticalAlignment=VerticalAlignment.Center};identity.Children.Add(new TextBlock{Text="Local Dashboard",FontSize=25,FontWeight=FontWeights.SemiBold});identity.Children.Add(WorkText("Version "+typeof(WpfDashboard).Assembly.GetName().Version.ToString(3)));header.Children.Add(identity);body.Children.Add(header);
+        var header=new DockPanel{Margin=new Thickness(0,0,0,24)};header.Children.Add(new Image{Source=window.Icon,Width=64,Height=64,Margin=new Thickness(0,0,18,0)});var identity=new StackPanel{VerticalAlignment=VerticalAlignment.Center};identity.Children.Add(new TextBlock{Text="Local Dashboard",FontSize=25,FontWeight=FontWeights.SemiBold});identity.Children.Add(WorkText("Version "+typeof(WpfDashboard).Assembly.GetName().Version.ToString()));header.Children.Add(identity);body.Children.Add(header);
         var card=new StackPanel{Margin=new Thickness(18)};card.Children.Add(WorkText("Your projects and tasks, in one place. Open folders, documents and websites, and keep track of your tasks."));card.Children.Add(new TextBlock{Text="Developed by",Margin=new Thickness(0,16,0,4),FontWeight=FontWeights.SemiBold});card.Children.Add(PublisherLink());card.Children.Add(WebsiteLink("dgx.digitalguy.me",PublisherWebsite,false));var frame=new Border{CornerRadius=new CornerRadius(9),Child=card};frame.SetResourceReference(Border.BackgroundProperty,"Surface");body.Children.Add(frame);
         body.Children.Add(WorkText("Project and website icons belong to their respective owners. Interface icons: Microsoft Fluent System Icons (MIT)."));body.Children.Add(SourceAction("View icon license",ShowIconLicense));presentDialog(Dialog("About Local Dashboard",560,650,root));
     }
@@ -116,7 +116,7 @@ internal sealed partial class WpfDashboard {
         var close=StandardAction(new Button{Content="Close",IsCancel=true,HorizontalAlignment=HorizontalAlignment.Right});DockPanel.SetDock(close,Dock.Bottom);root.Children.Add(close);
         var body=new StackPanel();body.Children.Add(WorkText("Report an issue",true));
         body.Children.Add(WorkText("Describe the problem, then copy your report into a message on the DGX Development contact page. Nothing is sent automatically."));
-        string version=typeof(WpfDashboard).Assembly.GetName().Version.ToString(3);
+        string version=typeof(WpfDashboard).Assembly.GetName().Version.ToString();
         body.Children.Add(WorkText("Local Dashboard version: "+version));
         var answers=new List<TextBox>();
         foreach(string prompt in new[]{"What were you doing?","What did you expect to happen?","What happened instead?"}){

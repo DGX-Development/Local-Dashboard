@@ -13,6 +13,7 @@ internal sealed class DashboardBackup {
     public Dictionary<string,string> files {get;set;}
     public Dictionary<string,string> hashes {get;set;}
     public Dictionary<string,BackupTaskCopy> lists {get;set;}
+    public Dictionary<string,BackupTaskCopy> icons {get;set;}
 }
 internal static partial class DashboardData {
     internal static readonly string[] Names={"catalog.json",".local/window-preferences.json",".local/sidebar-layout.json",".local/pins.json",".local/current-work.json",".local/agent-work.txt",".local/work-list-source.json"};
@@ -115,8 +116,8 @@ internal static partial class DashboardData {
         return bundle;
     }
     static Dictionary<string,byte[]> Decode(DashboardBackup bundle){
-        if(bundle==null||bundle.product!="Local Dashboard"||(bundle.schemaVersion!=1&&bundle.schemaVersion!=2&&bundle.schemaVersion!=3&&bundle.schemaVersion!=4)||bundle.files==null||bundle.hashes==null)throw new IOException("Unsupported Dashboard backup.");
-        string[] expected=bundle.schemaVersion==1?Names.Where(n=>n!=".local/work-list-source.json").ToArray():bundle.schemaVersion==4?Names.Concat(new[]{".local/personal-tasks-source.json"}).ToArray():Names;
+        if(bundle==null||bundle.product!="Local Dashboard"||(bundle.schemaVersion!=1&&bundle.schemaVersion!=2&&bundle.schemaVersion!=3&&bundle.schemaVersion!=4&&bundle.schemaVersion!=5)||bundle.files==null||bundle.hashes==null)throw new IOException("Unsupported Dashboard backup.");
+        string[] expected=bundle.schemaVersion==1?Names.Where(n=>n!=".local/work-list-source.json").ToArray():bundle.schemaVersion>=4?Names.Concat(new[]{".local/personal-tasks-source.json"}).ToArray():Names;
         if(bundle.files.Count!=expected.Length||bundle.hashes.Count!=expected.Length||expected.Any(n=>!bundle.files.ContainsKey(n)||!bundle.hashes.ContainsKey(n)))throw new IOException("Unsupported Dashboard backup.");
         var result=new Dictionary<string,byte[]>();
         foreach(string name in expected){byte[] bytes=bundle.files[name]==null?null:Convert.FromBase64String(bundle.files[name]);if(bytes!=null&&bytes.Length>2097152||Hash(bytes)!=bundle.hashes[name])throw new IOException("Backup checksum or size is invalid.");result[name]=bytes;}
@@ -142,6 +143,7 @@ internal static partial class DashboardData {
             }
             if(files[".local/agent-work.txt"]!=null){if(files[".local/agent-work.txt"].Length>1048576)throw new IOException("Agent Work is too large.");Text(files[".local/agent-work.txt"]);}
             ValidateTaskCopies(bundle,entries,check);
+            ValidateBackupIcons(bundle,files);
         }finally{Directory.Delete(check,true);}
     }
     internal static void Export(string profile,string destination){

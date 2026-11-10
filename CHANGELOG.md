@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.2.3 - 2026-11-10
+
+- Use consistent wording for restored copies. See which task files Dashboard will use before confirming.
+- Include Dashboard-owned custom icons and available task lists in configuration backups. Restore can reconnect separate copies while preserving originals.
+- Choose a checklist file in Settings > Tasks. Task views reload on entry and still offer manual Refresh. Personal tasks renumber after deletion.
+- Give the Edit Dashboard category and link lists more room. Use a website favicon automatically or switch back to it from a custom icon.
+- Direct cloud-provider sign-in is deferred.
+
 ## 2.2.2 - 2026-11-10
 
 - Manage categories, links, icons and ordering in Edit Dashboard. Drag whole rows or use the keyboard. Save applies the draft and Cancel discards it.

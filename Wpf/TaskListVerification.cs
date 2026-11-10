@@ -49,7 +49,7 @@ internal static class TaskListVerification {
         string checklistHash=ChecklistLocation.Token(checklist),agentHash=ChecklistLocation.Token(agent),personalHash=ChecklistLocation.Token(personal);
         var reopened=new ChecklistStore(checklist,entries).Read();Check(reopened.items.Single().state=="done"&&reopened.items.Single().details=="Existing detail","checklist entries, notes and Done state persist on reopening");
         var backup=DashboardData.ExportWithLists(area,Path.Combine(profile,"three-lists-backup.json"));
-        Check(backup.schemaVersion==4&&backup.lists.Count==3&&backup.lists.Values.All(x=>x.status=="included"),"backup includes all three selected lists");
+        Check(backup.schemaVersion==5&&backup.lists.Count==3&&backup.lists.Values.All(x=>x.status=="included"),"backup includes all three selected lists");
         Reject(()=>DashboardData.ExportWithLists(area,personal),"backup cannot overwrite the Personal tasks source");
         var restored=DashboardData.RestoreCopies(area,backup,false);
         Check(ChecklistLocation.Token(restored.Personal)==personalHash&&WorkSources.Read(area,true).path==personal,"restore creates a byte-exact personal copy and keeps current selection by default");

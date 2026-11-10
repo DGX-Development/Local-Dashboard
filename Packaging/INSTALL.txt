@@ -1,4 +1,4 @@
-LOCAL DASHBOARD 2.2.2
+LOCAL DASHBOARD 2.2.3
 
 Close any existing Local Dashboard using File > Exit before installing.
 
@@ -15,7 +15,7 @@ No personal lists or paths are included. The setup walkthrough opens for a new p
 This download contains a starter catalog, not your personal files. To carry over
 an existing Dashboard configuration, first use File > Back up configuration in
 your existing copy. In the installed copy, use File > Restore configuration.
-Review the restored-list option before selecting it. Keep your original backup.
+Review which restored copies Dashboard will use before confirming. Keep your original backup.
 
 The catalog and .local settings/checklist folder live beside the executable.
 Upgrades preserve existing catalog.json and .local data. Uninstall removes the
@@ -25,7 +25,7 @@ Back up configuration before manually editing or moving the application folder.
 Agent tasks displays your selected agent-maintained text file. Personal tasks
 can edit its selected text file. Checklists is the separate quick checklist.
 Choose task file locations in Settings > Tasks. Save loads new selections.
-Use Refresh beside Checklists to reread a selected text file. Cloud sign-in is coming soon;
+Task views reread their files when opened. Use Refresh beside Checklists to reread all three lists. Cloud sign-in is coming soon;
 local files in an already-synced folder can be selected now.
 
 Local Dashboard 2.2.0 and newer share one running instance per Windows user.

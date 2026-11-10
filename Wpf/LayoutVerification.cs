@@ -83,7 +83,7 @@ internal sealed partial class WpfDashboard
             DataConfirmation("Restore Dashboard","Replace Dashboard configuration?","This replaces saved settings, catalog, favorites, source selection, legacy managed Agent Work and My checklist with the backup. External work lists, cached snapshots, linked files, status reports and Windows startup registration are not changed. Back up your current configuration first if you need it.","Restore");
             DataConfirmation("Backup saved","Dashboard backup saved","Your linked files remain in their folders.","Close");ensureHidden();
             Select("work");assistantWorkView=false;RenderCompact(true);shell("layout-checklist.png",1280,860);
-            var add=Visuals<Button>(rows).Single(b=>Equals(b.Content,"Add"));
+            var add=Visuals<Button>(rows).Single(b=>Equals(b.Content,"Add checklist item"));
             if(Math.Abs(add.TranslatePoint(new Point(add.ActualWidth,0),rows).X-rows.ActualWidth)>1)throw new Exception("Checklist Add is not right-aligned.");
             if(Find<MenuItem>("CompactMenu").Icon==null)throw new Exception("Compact view menu icon missing.");
             System.Drawing.Color parsed;

@@ -45,7 +45,10 @@ internal sealed partial class WpfDashboard
         window.SourceInitialized+=(s,e)=>UpdateTaskbarSafely(()=>shellBrand.Apply(new WindowInteropHelper(window).Handle));
         window.Loaded+=(s,e)=>{if(!verifying){FitToWorkArea();if(loadedFullPlacement&&!Compact)window.WindowState=fullState;}QueueTaskbarRefresh();};
         Microsoft.Win32.UserPreferenceChangedEventHandler themeChanged=(s,e)=>window.Dispatcher.BeginInvoke(new Action(()=>{DashboardTheme.Apply(appearancePreviewTheme??preferenceStore.Value.theme);ApplyAccent(appearancePreviewTheme==null?SavedAccent():DashboardAccent.Selected);RefreshGlyphs();foreach(Window open in Application.Current.Windows)ThemeWindow(open,null);}));Microsoft.Win32.SystemEvents.UserPreferenceChanged+=themeChanged;window.Closed+=(s,e)=>Microsoft.Win32.SystemEvents.UserPreferenceChanged-=themeChanged;
-        window.Activated+=(s,e)=>QueueTaskbarRefresh();
+        window.Activated+=(s,e)=>{
+            QueueTaskbarRefresh();
+            if(section=="work")RefreshDisplayedTasks(false);
+        };
         DashboardTheme.Apply(preferenceStore.Value.theme);RefreshGlyphs();
         ApplyAccent(SavedAccent());
         if(refreshShell)UpdateTaskbarSafely(()=>shellBrand.RefreshShortcuts());
@@ -136,15 +139,18 @@ internal sealed partial class WpfDashboard
         heading.Text=agentUpdatesView?"Agent updates":"Tasks";
         if(agentUpdatesView){var reports=new StackPanel();rows.Children.Add(reports);RenderReportsInto(reports,true);}else if(personalTasksView)RenderSavedTaskList(true);else if(assistantWorkView)RenderQuinnWork();else RenderChecklist();
     }
+    void RefreshDisplayedTasks(bool manual)
+    {
+        if(!agentUpdatesView&&(assistantWorkView||personalTasksView))RefreshWorkSource(personalTasksView,manual);
+        else RenderCompact(true);
+    }
     void WorkTabs(){
         var header=Find<StackPanel>("WorkNavigation");header.Children.Clear();header.Visibility=Visibility.Visible;
         var modes=new WrapPanel{Margin=new Thickness(0,8,0,8)};
-        for(int i=0;i<3;i++){int mode=i;string label=i==1?PersonalTaskLabel():TaskLabel(i==0);var button=SourceAction(label,()=>{agentUpdatesView=false;assistantWorkView=mode==0;personalTasksView=mode==1;RenderCompact(true);Find<ScrollViewer>("ContentScroll").ScrollToHome();});
+        for(int i=0;i<3;i++){int mode=i;string label=i==1?PersonalTaskLabel():TaskLabel(i==0);var button=SourceAction(label,()=>{agentUpdatesView=false;assistantWorkView=mode==0;personalTasksView=mode==1;RenderCompact(true);if(mode<2)RefreshWorkSource(personalTasksView,false);Find<ScrollViewer>("ContentScroll").ScrollToHome();});
             bool selected=!agentUpdatesView&&i==(personalTasksView?1:assistantWorkView?0:2);SetNavigationSelected(button,selected);modes.Children.Add(button);
         }
-        if(!agentUpdatesView&&(assistantWorkView||personalTasksView))
-            modes.Children.Add(HeaderAction("Refresh","updates",()=>RefreshWorkSource(personalTasksView)));
-        else if(agentUpdatesView)modes.Children.Add(HeaderAction("Refresh","updates",()=>RenderCompact(true)));
+        modes.Children.Add(HeaderAction("Refresh","updates",()=>RefreshDisplayedTasks(true)));
         header.Children.Add(modes);
         int attention=AttentionCount();Find<MenuItem>("ReportsMenu").Visibility=attention>0?Visibility.Visible:Visibility.Collapsed;
         if(attention>0){var notice=SourceAction("Needs your attention ("+attention+")",()=>{agentUpdatesView=true;RenderCompact(true);});SetNavigationSelected(notice,agentUpdatesView);rows.Children.Add(notice);}
@@ -308,11 +314,17 @@ internal sealed partial class WpfDashboard
         }
     }
 
-    static ImageSource EntryIcon(Entry entry)
+    static ImageSource EntryIcon(Entry entry,string iconProfile=null)
     {
         if(HasDashboardGlyph(entry.iconGlyph))return GlyphSource(entry.iconGlyph);
         if(String.IsNullOrEmpty(entry.iconPath)&&entry.iconAsset=="local-dashboard.svg")
             using(var brand=DashboardBrand.Render(DashboardAccent.Selected,32))return BitmapSourceFor(brand);
+        var origin=WebsiteIcons.Origin(entry);
+        if(origin!=null)
+        {
+            var cached=iconProfile==null?null:WebsiteIcons.Cached(iconProfile,origin);
+            return cached??GlyphSource("globe");
+        }
         if(String.IsNullOrEmpty(entry.iconPath)||!File.Exists(entry.iconPath))
             return GlyphSource(entry.section=="documents"?"dev-guide":entry.section=="workflows"?"workflow":entry.section=="everyday"?"globe":"copy");
         try

@@ -135,16 +135,16 @@ internal sealed partial class WpfDashboard {
     static Button WorkRefresh(Action action){var button=CompactAction(ActionButton("Refresh",action));button.Margin=new Thickness(0,0,0,8);return button;}
     void RenderQuinnWork(){RenderSavedTaskList(false);}
     void RenderChecklist(){
-        var store=new ChecklistStore(ChecklistLocation.PathFor(profile),entries);
+        ChecklistStore store;
         WorkDocument document;
-        try{ChecklistLocation.RequireAvailable(profile);document=store.Read();}catch(Exception error){rows.Children.Add(WorkText("Checklist unavailable. "+error.Message));return;}
+        try{ChecklistLocation.RequireAvailable(profile);store=new ChecklistStore(ChecklistLocation.PathFor(profile),entries);document=store.Read();}catch(Exception error){rows.Children.Add(WorkText("Checklist unavailable. "+error.Message));return;}
         var tabs=new WrapPanel();
         foreach(bool done in new[]{false,true}){bool selected=done;var tab=SourceAction((done?"Done":"Current")+" ("+document.items.Count(i=>(i.state=="done")==done)+")",()=>{doneView=selected;RenderCompact(true);});SetNavigationSelected(tab,done==doneView);tabs.Children.Add(tab);}
         rows.Children.Add(tabs);
         if(!doneView){var entry=new DockPanel();var title=new TextBox{MaxLength=240,Margin=new Thickness(0,0,8,8),ToolTip="New checklist item"};System.Windows.Automation.AutomationProperties.SetName(title,"New checklist item");
             var error=WorkText("");error.Tag="checklist-error";error.Visibility=Visibility.Collapsed;
             Action add=()=>{try{store.Upsert(new WorkPatch{expectedRevision=document.revision,id="personal-"+Guid.NewGuid().ToString("N"),title=title.Text.Trim()});RenderCompact(true);}catch(Exception failure){error.Text=failure.Message;error.Visibility=Visibility.Visible;}};
-            var button=CompactAction(ActionButton("Add",add));button.Height=36;button.Margin=new Thickness(0,0,0,8);title.Height=36;title.Padding=new Thickness(10,0,10,0);title.VerticalContentAlignment=VerticalAlignment.Center;DockPanel.SetDock(button,Dock.Right);entry.Children.Add(button);entry.Children.Add(title);rows.Children.Add(entry);rows.Children.Add(error);
+            var button=CompactAction(ActionButton("Add checklist item",add));button.Height=36;button.Margin=new Thickness(0,0,0,8);title.Height=36;title.Padding=new Thickness(10,0,10,0);title.VerticalContentAlignment=VerticalAlignment.Center;DockPanel.SetDock(button,Dock.Right);entry.Children.Add(button);entry.Children.Add(title);rows.Children.Add(entry);rows.Children.Add(error);
             title.KeyDown+=(s,e)=>{if(e.Key==Key.Enter){add();e.Handled=true;}};
         }
         var selectedItems=document.items.Where(i=>(i.state=="done")==doneView).ToList();

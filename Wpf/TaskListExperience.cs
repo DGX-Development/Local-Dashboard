@@ -26,6 +26,7 @@ internal sealed partial class WpfDashboard {
             if(block.Kind=="task"){groups[block]=group;if(group!="")counts[group]=counts.ContainsKey(group)?counts[group]+1:1;}
         }
         var deferred=new StackPanel();
+        int activeNumber=0,deferredNumber=0;
         foreach(var block in document.Blocks){
             if(block.Kind!="task")continue;
             var content=new StackPanel{Margin=new Thickness(0,6,0,8),Tag="readable-task"};
@@ -36,7 +37,7 @@ internal sealed partial class WpfDashboard {
                 if(counts[project]==1&&title.IndexOf(project,StringComparison.CurrentCultureIgnoreCase)>=0)title=project;
                 else if(title.IndexOf(project,StringComparison.CurrentCultureIgnoreCase)<0)title=project+": "+title;
             }
-            taskTitle.Children.Add(WorkText(block.Number+". "+title,true));content.Children.Add(taskTitle);
+            taskTitle.Children.Add(WorkText((block.Deferred?++deferredNumber:++activeNumber)+". "+title,true));content.Children.Add(taskTitle);
             if(block.Deferred)content.Children.Add(WorkText("Deferred / do not start",true));
             if(!String.IsNullOrWhiteSpace(block.Summary))content.Children.Add(WorkText(block.Summary));
             var extra=new List<string>();
@@ -58,7 +59,14 @@ internal sealed partial class WpfDashboard {
         try{
             var source=WorkSources.Read(profile,personal);var cache=WorkSources.Cached(profile,source);
             if(personal&&!CloudSources.IsCloud(source.kind)){
-                var actions=new WrapPanel();actions.Children.Add(SourceAction("Add task",()=>Protect(()=>EditPersonalTask(null,null))));actions.Children.Add(SourceAction("Edit document",()=>Protect(()=>EditPersonalTask(null,null,true))));rows.Children.Add(actions);
+                var actions=new WrapPanel();
+                actions.Children.Add(SourceAction("Add task",()=>Protect(()=>EditPersonalTask(null,null))));
+                actions.Children.Add(SourceAction("Edit document",()=>Protect(()=>EditPersonalTask(null,null,true))));
+                var header=new DockPanel();
+                DockPanel.SetDock(actions,Dock.Right);
+                header.Children.Add(actions);
+                header.Children.Add(TaskSourceHeading(PersonalTaskLabel()));
+                rows.Children.Add(header);
             }
             if(cache==null){if(String.IsNullOrWhiteSpace(status))rows.Children.Add(WorkText("A file is selected. Choose Refresh to load it."));rows.Children.Add(TaskDetails("Source details",source.path));return;}
             if(String.IsNullOrWhiteSpace(cache.text))rows.Children.Add(WorkText("This text file is empty."));else RenderReadableTaskText(cache.text,rows,personal&&!CloudSources.IsCloud(source.kind));
