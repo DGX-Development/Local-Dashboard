@@ -105,6 +105,7 @@ internal sealed class CatalogDraft
             row["iconPath"]=entry.iconPath;
         }
         if(!String.IsNullOrEmpty(entry.iconGlyph))row["iconGlyph"]=entry.iconGlyph;
+        if(!String.IsNullOrEmpty(entry.iconWebsiteTargetId))row["iconWebsiteTargetId"]=entry.iconWebsiteTargetId;
         return row;
     }
 
@@ -126,6 +127,12 @@ internal sealed class CatalogDraft
         if(entry.iconGlyph!=previous.iconGlyph)
         {
             if(String.IsNullOrEmpty(entry.iconGlyph))row.Remove("iconGlyph");else row["iconGlyph"]=entry.iconGlyph;
+            changed=true;
+        }
+        if(entry.iconWebsiteTargetId!=previous.iconWebsiteTargetId)
+        {
+            if(String.IsNullOrEmpty(entry.iconWebsiteTargetId))row.Remove("iconWebsiteTargetId");
+            else row["iconWebsiteTargetId"]=entry.iconWebsiteTargetId;
             changed=true;
         }
         if(entry.iconAsset!=previous.iconAsset)

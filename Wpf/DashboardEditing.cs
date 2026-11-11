@@ -152,7 +152,12 @@ internal sealed partial class WpfDashboard
             location.Text=target==null?"":target.kind=="web"?target.url:target.path;
             location.IsEnabled=target!=null;
             browseLocation.Visibility=target!=null&&target.kind!="web"?Visibility.Visible:Visibility.Collapsed;
-            useWebsiteIcon.Visibility=selected!=null&&selected.targets.Count>0&&selected.targets[0].kind=="web"?Visibility.Visible:Visibility.Collapsed;
+            useWebsiteIcon.Visibility=target!=null&&target.kind=="web"?Visibility.Visible:Visibility.Collapsed;
+        };
+        Action<LinkTarget> clearWebsiteImage=destination=>{
+            if(selected==null||String.IsNullOrEmpty(selected.iconWebsiteTargetId)||selected.iconWebsiteTargetId!=destination.id)return;
+            selected.iconPath=null;
+            linkIcon.Source=EntryIcon(selected,profile);
         };
         list.SelectionChanged+=(s,e)=>{
             loading=true;
@@ -169,12 +174,14 @@ internal sealed partial class WpfDashboard
             showTarget();
             loading=false;
         };
-        destinations.SelectionChanged+=(s,e)=>{if(!loading){loading=true;showTarget();loading=false;}};
+        destinations.SelectionChanged+=(s,e)=>{if(!loading){websiteIconRequest++;websiteIconStatus.Visibility=Visibility.Collapsed;loading=true;showTarget();loading=false;}};
         kind.SelectionChanged+=(s,e)=>{
             if(loading||target==null||!kind.IsEnabled)return;
             int index=kind.SelectedIndex;if(index<0)return;string value=kinds[index];if(value==target.kind)return;
+            websiteIconRequest++;websiteIconStatus.Visibility=Visibility.Collapsed;
             string previousKind=target.kind;
             target.kind=value;
+            if(previousKind=="web")clearWebsiteImage(target);
             if(previousKind=="web"||value=="web")
             {
                 target.path=value=="web"?null:"";
@@ -189,13 +196,13 @@ internal sealed partial class WpfDashboard
             if(entry!=null)ChooseDashboardIcon(dialog,entry.iconGlyph,entry.iconPath,(glyph,path)=>{
                 websiteIconRequest++;
                 websiteIconStatus.Visibility=Visibility.Collapsed;
-                entry.iconGlyph=glyph;entry.iconPath=path;entry.iconAsset=null;linkIcon.Source=EntryIcon(entry,profile);
+                entry.iconGlyph=glyph;entry.iconPath=path;entry.iconAsset=null;entry.iconWebsiteTargetId=null;linkIcon.Source=EntryIcon(entry,profile);
             });
         });
         useWebsiteIcon.Click+=async(s,e)=>{
             var entry=selected;
             if(entry==null)return;
-            var origin=WebsiteIcons.Origin(new Entry{targets=entry.targets});
+            var origin=WebsiteIcons.TargetOrigin(target);
             websiteIconStatus.Visibility=Visibility.Visible;
             if(origin==null)
             {
@@ -210,7 +217,7 @@ internal sealed partial class WpfDashboard
                 try{icon=await System.Threading.Tasks.Task.Run(()=>WebsiteIcons.Fetch(profile,origin,usePublicIndex:true));}
                 catch(Exception){icon=null;}
                 if((!dialog.IsVisible&&!nonWindowedVerification)||request!=websiteIconRequest||selected!=entry||
-                    !Equals(origin,WebsiteIcons.Origin(new Entry{targets=entry.targets})))return;
+                    !Equals(origin,WebsiteIcons.TargetOrigin(target)))return;
             }
             if(icon==null||WebsiteIcons.Cached(profile,origin)==null)
             {
@@ -218,7 +225,8 @@ internal sealed partial class WpfDashboard
                 return;
             }
             entry.iconGlyph=null;
-            entry.iconPath=null;
+            entry.iconPath=WebsiteIcons.CachePath(profile,origin);
+            entry.iconWebsiteTargetId=target.id;
             entry.iconAsset=null;
             linkIcon.Source=icon;
             websiteIconStatus.Text="Website icon ready. Choose Save to apply it.";
@@ -228,7 +236,9 @@ internal sealed partial class WpfDashboard
             if(MessageBox.Show(dialog,"Remove this destination from the link?","Remove destination",MessageBoxButton.YesNo,MessageBoxImage.Question)!=MessageBoxResult.Yes)return;
             loading=true;
             int index=destinations.SelectedIndex;
-            selected.targets.Remove(target);
+            var removed=target;
+            selected.targets.Remove(removed);
+            clearWebsiteImage(removed);
             destinations.Items.Refresh();
             destinations.SelectedIndex=Math.Min(index,selected.targets.Count-1);
             showTarget();
@@ -238,7 +248,12 @@ internal sealed partial class WpfDashboard
             if(loading||target==null)return;
             websiteIconRequest++;
             websiteIconStatus.Visibility=Visibility.Collapsed;
-            if(target.kind=="web")target.url=location.Text.Trim();
+            if(target.kind=="web")
+            {
+                var previous=WebsiteIcons.TargetOrigin(target);
+                target.url=location.Text.Trim();
+                if(!Equals(previous,WebsiteIcons.TargetOrigin(target)))clearWebsiteImage(target);
+            }
             else target.path=location.Text.Trim();
         };
         Action refreshEntries=()=>{

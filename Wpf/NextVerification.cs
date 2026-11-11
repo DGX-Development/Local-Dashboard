@@ -57,7 +57,10 @@ internal static class SafeBackupVerification {
         string assets=Path.Combine(target,".local","project-icons");
         Directory.CreateDirectory(assets);
         string icon=Path.Combine(assets,"fixture.png");
+        string browsedIcon=Path.Combine(profile,"browsed-icon.png");
         File.WriteAllBytes(icon,Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jL1sAAAAASUVORK5CYII="));
+        File.Copy(icon,browsedIcon);
+        entries[1].iconPath=browsedIcon;
         entries[0].iconPath=icon;
         var missingFolder=Path.Combine(profile,"Unavailable folder");
         entries[0].targets[0].path=missingFolder;
@@ -72,13 +75,20 @@ internal static class SafeBackupVerification {
         File.WriteAllText(Path.Combine(target,".local","pins.json"),AppData.Json.Serialize(new[]{entries[0].id}));
         WorkSources.Save(target,new WorkSourceChoice{schemaVersion=1,kind="local",path=personalTasks},WorkSources.Token(target,true),true);
         var full=DashboardData.ExportWithLists(target,Path.Combine(profile,"full-backup.json"));
-        Check(full.icons.Count==1&&full.icons[icon].sha256==DashboardData.Hash(File.ReadAllBytes(icon)),"backup includes one copy of an icon shared by a link and category");
+        Check(full.icons.Count==2&&full.icons[icon].sha256==DashboardData.Hash(File.ReadAllBytes(icon)),"backup includes one copy of an icon shared by a link and category");
+        Check(full.icons[browsedIcon].status=="included"&&full.icons[browsedIcon].sha256==DashboardData.Hash(File.ReadAllBytes(browsedIcon)),
+            "backup embeds a browsed local image outside Dashboard storage");
+        File.Delete(browsedIcon);
         File.Delete(icon);
         Check(new[]{"agent","personal","checklist"}.All(role=>DashboardData.CurrentRestoreList(fresh,role,entries)==RestoreListStatus.Unset),
             "fresh profile has no active files to displace during restore");
         var recovered=DashboardData.RestoreCopies(fresh,full,new[]{"agent","personal","checklist"});
         var freshEntries=AppData.ReadEntries(File.ReadAllText(Path.Combine(fresh,"catalog.json")),fresh);
         var recoveredIcon=freshEntries[0].iconPath;
+        string restoredBrowsedIcon=freshEntries[1].iconPath;
+        Check(restoredBrowsedIcon!=browsedIcon&&File.Exists(restoredBrowsedIcon)&&
+            DashboardData.Hash(File.ReadAllBytes(restoredBrowsedIcon))==full.icons[browsedIcon].sha256,
+            "fresh restore reconnects the browsed image after its original is removed");
         var restoredSidebar=new SidebarStore(Path.Combine(fresh,".local","sidebar-layout.json")).Read().Layout;
         Check(restoredSidebar.items[0].label=="Recovered projects"&&restoredSidebar.items[0].iconPath==recoveredIcon&&
             File.Exists(recoveredIcon)&&DashboardData.Hash(File.ReadAllBytes(recoveredIcon))==full.icons[icon].sha256,

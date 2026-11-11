@@ -36,7 +36,7 @@ internal sealed partial class WpfDashboard {
         return presentDialog(dialog)==true;
     }
     void BackupConfiguration(){
-        if(!DataConfirmation("Back up Dashboard","Configuration and task-list copies","Includes your settings, dashboard links, favorites, layout and Dashboard-owned custom icons, plus copies of Agent tasks, Personal tasks and Checklist when available. The result tells you if a list could not be copied. Linked project files, online-only content and progress reports are not included.","Continue"))return;
+        if(!DataConfirmation("Back up Dashboard","Configuration and task-list copies","Includes your settings, dashboard links, favorites, layout and custom icons, plus copies of Agent tasks, Personal tasks and Checklist when available. The result tells you if a list could not be copied. Linked project files, online-only content and progress reports are not included.","Continue"))return;
         var picker=new SaveFileDialog{Title="Back up Dashboard configuration",FileName="local-dashboard-"+DateTime.Now.ToString("yyyy-MM-dd")+".json",Filter="Dashboard configuration|*.json",AddExtension=true,DefaultExt=".json"};
         if(picker.ShowDialog(window)!=true)return;
         var saved=DashboardData.ExportWithLists(profile,picker.FileName);

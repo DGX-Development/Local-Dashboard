@@ -1,4 +1,4 @@
-LOCAL DASHBOARD 2.2.3
+LOCAL DASHBOARD 2.2.4
 
 Close any existing Local Dashboard using File > Exit before installing.
 

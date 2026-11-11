@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.4 - 2026-11-10
+
+- Configuration backups now include readable custom icon images picked outside the Dashboard folder. Restore reconnects included images in a fresh profile.
+- Use website icon follows the selected destination on links with multiple destinations, including in custom categories. Dashboard saves the icon selection and refreshes it when the website changes.
+- Dashboard looks for missing automatic website icons when you open a category or reload the catalog.
+
 ## 2.2.3 - 2026-11-10
 
 - Use consistent wording for restored copies. See which task files Dashboard will use before confirming.

@@ -19,15 +19,22 @@ internal static class WebsiteIcons
 
     internal static Uri Origin(Entry entry)
     {
-        if(!String.IsNullOrEmpty(entry.iconGlyph)||!String.IsNullOrEmpty(entry.iconPath)||!String.IsNullOrEmpty(entry.iconAsset))return null;
-        var target=entry.targets==null?null:entry.targets.FirstOrDefault();
+        if(!String.IsNullOrEmpty(entry.iconGlyph)||!String.IsNullOrEmpty(entry.iconAsset)||entry.targets==null)return null;
+        if(!String.IsNullOrEmpty(entry.iconPath)&&
+            (String.IsNullOrEmpty(entry.iconWebsiteTargetId)||File.Exists(entry.iconPath)))return null;
+        var preferred=entry.targets.FirstOrDefault(target=>target.kind=="web"&&target.id==entry.iconWebsiteTargetId);
+        return TargetOrigin(preferred??entry.targets.FirstOrDefault(target=>target.kind=="web"));
+    }
+
+    internal static Uri TargetOrigin(LinkTarget target)
+    {
         Uri uri;
         if(target==null||target.kind!="web"||!Uri.TryCreate(target.url,UriKind.Absolute,out uri)||
             (uri.Scheme!=Uri.UriSchemeHttps&&uri.Scheme!=Uri.UriSchemeHttp)||uri.UserInfo.Length!=0)return null;
         return new Uri(uri.GetLeftPart(UriPartial.Authority)+"/");
     }
 
-    static string CachePath(string profile,Uri origin)
+    internal static string CachePath(string profile,Uri origin)
     {
         return Path.Combine(profile,".local","website-icons",DashboardData.Hash(Encoding.UTF8.GetBytes(origin.AbsoluteUri))+".png");
     }

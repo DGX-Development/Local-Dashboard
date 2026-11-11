@@ -76,7 +76,7 @@ internal static partial class DashboardData {
             using(Lock(personal))bundle.lists["checklist"]=ReadTaskCopy(personal,"json",!File.Exists(ChecklistLocation.Config(profile)));
             bundle.lists["agent"]=source==null?MissingCopy("txt","unavailable"):CloudSources.IsCloud(source.kind)?MissingCopy("txt","online"):ReadTaskCopy(source.path,Path.GetExtension(source.path).Equals(".md",StringComparison.OrdinalIgnoreCase)?"md":"txt",false);
             bundle.lists["personal"]=personalSource==null?MissingCopy("txt","unavailable"):CloudSources.IsCloud(personalSource.kind)?MissingCopy("txt","online"):ReadTaskCopy(personalSource.path,Path.GetExtension(personalSource.path).Equals(".md",StringComparison.OrdinalIgnoreCase)?"md":"txt",false);
-            bundle.icons=CaptureBackupIcons(profile,Decode(bundle));
+            bundle.icons=CaptureBackupIcons(Decode(bundle));
             Validate(profile,bundle);
             var bytesToSave=Utf8.GetBytes(AppData.Json.Serialize(bundle));
             if(bytesToSave.Length>16777216)throw new IOException("Backup exceeds the 16 MB limit. Choose smaller custom images before backing up.");
@@ -165,29 +165,47 @@ internal static partial class DashboardData {
         }
     }
 
-    static Dictionary<string,BackupTaskCopy> CaptureBackupIcons(string profile,Dictionary<string,byte[]> files)
+    static Dictionary<string,BackupTaskCopy> CaptureBackupIcons(Dictionary<string,byte[]> files)
     {
         var result=new Dictionary<string,BackupTaskCopy>(StringComparer.OrdinalIgnoreCase);
-        string root=Path.GetFullPath(profile);
-        var owned=new[]{"project-icons","website-icons","restored-icons"}.Select(folder=>Path.Combine(root,".local",folder)+"\\").ToArray();
         foreach(string name in new[]{"catalog.json",".local/sidebar-layout.json"})
         {
             if(files[name]==null)continue;
             foreach(var row in IconRows(AppData.Json.DeserializeObject(Text(files[name]))))
             {
                 string reference=(string)row["iconPath"];
-                if(!Path.IsPathRooted(reference)||result.ContainsKey(reference))continue;
-                string path=Path.GetFullPath(reference);
-                string format=Path.GetExtension(path).ToLowerInvariant();
-                if(!owned.Any(folder=>path.StartsWith(folder,StringComparison.OrdinalIgnoreCase))||!IconFormats.Contains(format))continue;
-                GuardPath(path);
-                if(!File.Exists(path)){result[reference]=MissingCopy(format,"unavailable");continue;}
-                var bytes=ReadBounded(path);
-                result[reference]=new BackupTaskCopy{format=format,status="included",data=Convert.ToBase64String(bytes),sha256=Hash(bytes)};
+                if(result.ContainsKey(reference))continue;
+                string format=Path.GetExtension(reference).ToLowerInvariant();
+                if(!IconFormats.Contains(format))continue;
+                result[reference]=CaptureBackupIcon(reference,format);
             }
         }
         return result;
     }
+
+    static BackupTaskCopy CaptureBackupIcon(string reference,string format)
+    {
+        try
+        {
+            if(!Path.IsPathRooted(reference)||!String.Equals(Path.GetFullPath(reference),reference,StringComparison.OrdinalIgnoreCase))
+                return MissingCopy(format,"unavailable");
+            GuardPath(reference);
+            var bytes=ReadBounded(reference);
+            using(var stream=new MemoryStream(bytes,false))
+            {
+                var image=System.Windows.Media.Imaging.BitmapDecoder.Create(stream,
+                    System.Windows.Media.Imaging.BitmapCreateOptions.None,System.Windows.Media.Imaging.BitmapCacheOption.OnLoad);
+                if(image.Frames.Count==0)return MissingCopy(format,"unavailable");
+            }
+            return new BackupTaskCopy{format=format,status="included",data=Convert.ToBase64String(bytes),sha256=Hash(bytes)};
+        }
+        catch(IOException){return MissingCopy(format,"unavailable");}
+        catch(UnauthorizedAccessException){return MissingCopy(format,"unavailable");}
+        catch(ArgumentException){return MissingCopy(format,"unavailable");}
+        catch(NotSupportedException){return MissingCopy(format,"unavailable");}
+        catch(System.Runtime.InteropServices.COMException){return MissingCopy(format,"unavailable");}
+    }
+
 
     static readonly string[] IconFormats={".png",".ico",".jpg",".jpeg",".bmp",".gif",".tif",".tiff",".webp"};
 
@@ -262,7 +280,7 @@ internal static partial class DashboardData {
         if(backup.schemaVersion<5)return "This older backup contains icon paths only.";
         int included=backup.icons.Values.Count(icon=>icon.status=="included");
         int missing=backup.icons.Count-included;
-        return included+" Dashboard-owned icon files included"+(missing==0?".":". "+missing+" were unavailable.");
+        return included+" custom icon files included"+(missing==0?".":". "+missing+" were unavailable.");
     }
 
     internal static RestoreListStatus CurrentRestoreList(string profile,string role,List<Entry> entries)

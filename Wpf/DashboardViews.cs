@@ -333,7 +333,11 @@ internal sealed partial class WpfDashboard
             var image=new BitmapImage();
             if(Path.GetExtension(entry.iconPath).Equals(".ico",StringComparison.OrdinalIgnoreCase))
                 using(var bitmap=DashboardForm.ReadIcon(entry.iconPath))return BitmapSourceFor(bitmap);
-            image.BeginInit();image.CacheOption=BitmapCacheOption.OnLoad;image.UriSource=new Uri(entry.iconPath);image.EndInit();image.Freeze();
+            using(var stream=File.OpenRead(entry.iconPath))
+            {
+                image.BeginInit();image.CacheOption=BitmapCacheOption.OnLoad;
+                image.StreamSource=stream;image.EndInit();image.Freeze();
+            }
             // The wide Pixoo wordmark includes a standalone cloud at the left.
             if(entry.iconPath.EndsWith(Path.DirectorySeparatorChar+pixooLogo,StringComparison.OrdinalIgnoreCase)&&image.PixelWidth==1774&&image.PixelHeight==887)
             {

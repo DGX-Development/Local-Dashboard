@@ -106,6 +106,7 @@ internal sealed partial class WpfDashboard
         if(section!="work"&&section!="reports"&&!layout.items.Any(item=>item.id==section))section=layout.items.First(item=>SidebarStore.Known(item.id)).id;
         RefreshNavigation();
         Render();
+        RefreshVisibleWebsiteIcons();
     }
 
     void RefreshNavigation()
@@ -160,6 +161,7 @@ internal sealed partial class WpfDashboard
         if(Compact&&id!="work")SetCompact(false);
         search.Clear();section=id!="work"&&id!="reports"&&!layout.items.Any(item=>item.id==id)?layout.items.First(item=>SidebarStore.Known(item.id)).id:id;
         UpdateViewChrome();Render();
+        RefreshVisibleWebsiteIcons();
         if(section=="work"&&(assistantWorkView||personalTasksView)&&!agentUpdatesView)
             RefreshWorkSource(personalTasksView,false);
     }
@@ -301,9 +303,21 @@ internal sealed partial class WpfDashboard
 
     void FetchSavedWebsiteIcons(System.Collections.Generic.Dictionary<string,Uri> previous,string selectedId)
     {
-        var origins=entries.Where(entry=>entry.id==selectedId||!previous.ContainsKey(entry.id)||
+        var candidates=entries.Where(entry=>entry.id==selectedId||!previous.ContainsKey(entry.id)||
                 !Equals(previous[entry.id],WebsiteIcons.Origin(entry)))
-            .Select(WebsiteIcons.Origin).Where(origin=>origin!=null).Distinct()
+            .ToArray();
+        FetchWebsiteIcons(candidates);
+    }
+
+    void RefreshVisibleWebsiteIcons()
+    {
+        if(verifying||section=="work"||section=="reports")return;
+        FetchWebsiteIcons(entries.Where(entry=>DashboardForm.EntryInSection(entry,section)));
+    }
+
+    void FetchWebsiteIcons(System.Collections.Generic.IEnumerable<Entry> candidates)
+    {
+        var origins=candidates.Select(WebsiteIcons.Origin).Where(origin=>origin!=null).Distinct()
             .Where(origin=>WebsiteIcons.Cached(profile,origin)==null&&pendingWebsiteIcons.Add(origin)).ToArray();
         if(origins.Length==0)return;
         System.Threading.Tasks.Task.Run(()=>{

@@ -8,6 +8,70 @@ using System.Windows.Controls;
 
 internal sealed partial class WpfDashboard {
     static void CloseoutCheck(bool result,string name){if(!result)throw new Exception(name);Console.WriteLine("PASS "+name);}
+    void VerifyMixedDestinationIcon(Uri origin)
+    {
+        string catalog=Path.Combine(profile,"catalog.json");
+        string original=File.ReadAllText(catalog);
+        var originalPresenter=presentDialog;
+        var mixed=new Entry{id="mixed-icon-fixture",name="Media project",section="category-"+Guid.NewGuid().ToString("N"),
+            targets=new List<LinkTarget>{
+                new LinkTarget{id="folder",kind="folder",path=profile,label="Folder"},
+                new LinkTarget{id="site",kind="web",url=origin.AbsoluteUri,label="Website"}
+            }};
+        try
+        {
+            var fixture=AppData.ReadEntries(original,profile);
+            fixture.Add(mixed);
+            File.WriteAllText(catalog,AppData.Json.Serialize(fixture));
+            Reload();
+            Select(mixed.section);
+            presentDialog=dialog=>{
+                var surface=(UIElement)dialog.Content;
+                var button=Visuals<Button>(surface).Single(item=>Equals(item.Content,"Use website icon"));
+                CloseoutCheck(button.Visibility==Visibility.Collapsed,"a folder destination offers a local image");
+                var destinations=Visuals<ListBox>(surface).Single(item=>item.Items.Count==2&&item.Items[0] is LinkTarget);
+                destinations.SelectedIndex=1;
+                CloseoutCheck(button.Visibility==Visibility.Visible,"a website destination in a custom category offers its favicon");
+                ClickIn(surface,"Use website icon");
+                ClickIn(surface,"Save");
+                dialog.Close();
+                return true;
+            };
+            EditCatalog();
+            Reload();
+            var saved=entries.Single(entry=>entry.id==mixed.id);
+            CloseoutCheck(saved.iconPath==WebsiteIcons.CachePath(profile,origin)&&EntryIcon(saved,profile) is System.Windows.Media.Imaging.BitmapSource,
+                "a custom category link keeps its selected website icon after reopening the catalog");
+            string backup=Path.Combine(profile,"mixed-icon-backup.json");
+            DashboardData.ExportWithLists(profile,backup);
+            string fresh=Path.Combine(profile,"MixedFresh");
+            Directory.CreateDirectory(fresh);
+            DashboardData.RestoreCopies(fresh,DashboardData.Load(backup),false);
+            var restored=AppData.ReadEntries(File.ReadAllText(Path.Combine(fresh,"catalog.json")),fresh).Single(entry=>entry.id==mixed.id);
+            CloseoutCheck(restored.iconWebsiteTargetId=="site"&&restored.iconPath!=saved.iconPath&&EntryIcon(restored,fresh) is System.Windows.Media.Imaging.BitmapSource,
+                "the selected website icon displays after restoring configuration into a fresh profile");
+            presentDialog=dialog=>{
+                var surface=(UIElement)dialog.Content;
+                Visuals<ListBox>(surface).Single(item=>item.Items.Count==2&&item.Items[0] is LinkTarget).SelectedIndex=1;
+                Visuals<TextBox>(surface).Single(field=>System.Windows.Automation.AutomationProperties.GetName(field)=="Website address")
+                    .Text="https://updated.invalid/";
+                ClickIn(surface,"Save");
+                dialog.Close();
+                return true;
+            };
+            EditCatalog();
+            var changed=entries.Single(entry=>entry.id==mixed.id);
+            CloseoutCheck(changed.iconPath==null&&WebsiteIcons.Origin(changed).Host=="updated.invalid",
+                "changing the selected website discards its old favicon and resolves the new address");
+        }
+        finally
+        {
+            File.WriteAllText(catalog,original);
+            presentDialog=originalPresenter;
+            Reload();
+        }
+    }
+
     void VerifyDeepTaskCache(){
         const string formatted="1. Review sample\n   Read the notes.\n   Status: Ready\n   Next: Review\n\n## Later / on hold\n\n2. Deferred example\n   Wait.\n";
         foreach(bool personal in new[]{false,true}){
@@ -227,11 +291,12 @@ internal sealed partial class WpfDashboard {
                     };
                     EditCatalog();
                     var saved=entries.Single(item=>item.targets.Any(target=>target.url==expected));
-                    CloseoutCheck(WebsiteIcons.Origin(saved)!=null&&WebsiteIcons.Cached(profile,new Uri(expected))!=null,
+                    CloseoutCheck(saved.iconPath==WebsiteIcons.CachePath(profile,new Uri(expected))&&EntryIcon(saved,profile) is System.Windows.Media.Imaging.BitmapSource,
                         host+" saves and reloads its downloaded icon");
                 }
                 Select("software");
             }
+            VerifyMixedDestinationIcon(origin);
             website.iconGlyph="folder";
             CloseoutCheck(WebsiteIcons.Origin(website)==null,"a chosen built-in icon takes precedence over the favicon");
             website.iconGlyph=null;website.iconPath="custom.png";

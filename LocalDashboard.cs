@@ -16,14 +16,14 @@ using System.Windows.Forms;
 [assembly: AssemblyProduct("Local Dashboard")]
 [assembly: AssemblyDescription("Local projects, documents and workflows")]
 #if WPF_REBUILD
-[assembly: AssemblyVersion("2.2.3.0")]
-[assembly: AssemblyFileVersion("2.2.3.0")]
+[assembly: AssemblyVersion("2.2.4.0")]
+[assembly: AssemblyFileVersion("2.2.4.0")]
 #else
 [assembly: AssemblyVersion("1.5.6.0")]
 [assembly: AssemblyFileVersion("1.5.6.0")]
 #endif
 public sealed class LinkTarget { public string id {get;set;} public string kind {get;set;} public string path {get;set;} public string url {get;set;} public string label {get;set;} public string openIn {get;set;} }
-public sealed class Entry { public string id {get;set;} public string name {get;set;} public string displayName {get;set;} public string section {get;set;} public string description {get;set;} public string iconPath {get;set;} public string iconGlyph {get;set;} public string iconAsset {get;set;} public List<LinkTarget> targets {get;set;} }
+public sealed class Entry { public string id {get;set;} public string name {get;set;} public string displayName {get;set;} public string section {get;set;} public string description {get;set;} public string iconPath {get;set;} public string iconGlyph {get;set;} public string iconAsset {get;set;} public string iconWebsiteTargetId {get;set;} public List<LinkTarget> targets {get;set;} }
 internal static class AppData {
     internal static readonly string Root=LocateRoot();
     internal static readonly JavaScriptSerializer Json=new JavaScriptSerializer { MaxJsonLength=32*1024*1024 };
