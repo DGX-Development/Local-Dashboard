@@ -4,11 +4,11 @@
 
 Local Dashboard is a Windows app for opening your project folders, documents and websites, and keeping task lists together in one place.
 
-**Status:** In active development. The latest packaged release for repository members is **2.2.5**.
+**Status:** In active development. The latest packaged release is **2.2.5**.
 
 ## Install 2.2.5
 
-Repository access is required for the [v2.2.5 release](https://github.com/DGX-Development/Local-Dashboard/releases/tag/v2.2.5).
+Download the installer or portable ZIP from the [v2.2.5 release](https://github.com/DGX-Development/Local-Dashboard/releases/tag/v2.2.5).
 
 - [Windows x64 installer](https://github.com/DGX-Development/Local-Dashboard/releases/download/v2.2.5/LocalDashboard-2.2.5-Setup.exe)
 - [Portable ZIP](https://github.com/DGX-Development/Local-Dashboard/releases/download/v2.2.5/LocalDashboard-2.2.5-Portable.zip)
