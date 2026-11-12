@@ -48,9 +48,10 @@ internal static class TaskbarShortcutIcons {
             SHUpdateImage(location.name,location.index,0,index.index);
         SHChangeNotify(0x2000,0x1005,file,IntPtr.Zero);
     }
-    internal static void Refresh(string executable,string arguments,string appId,string icon){
+    internal static void Refresh(string executable,string arguments,string appId,string icon,bool review){
         string pinned=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),"Microsoft","Internet Explorer","Quick Launch","User Pinned");
-        var roots=new[]{Path.Combine(pinned,"TaskBar"),Path.Combine(pinned,"ImplicitAppShortcuts"),Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),Environment.GetFolderPath(Environment.SpecialFolder.StartMenu),Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(icon)),"relaunch.lnk")};
+        var roots=new List<string>{Path.Combine(pinned,"TaskBar"),Path.Combine(pinned,"ImplicitAppShortcuts"),Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),Environment.GetFolderPath(Environment.SpecialFolder.StartMenu),Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(icon)),"relaunch.lnk")};
+        if(review)roots.AddRange(Directory.GetFiles(Path.GetDirectoryName(executable),"*.lnk"));
         Refresh(executable,arguments,appId,icon,roots);
     }
     internal static void Refresh(string executable,string arguments,string appId,string icon,IEnumerable<string> roots){

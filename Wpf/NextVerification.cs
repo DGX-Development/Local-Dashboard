@@ -20,7 +20,7 @@ internal static class SafeBackupVerification {
         string originalPersonalTasks=ChecklistLocation.Token(personalTasks),personalSourceToken=WorkSources.Token(target,true);
         string originalAgent=ChecklistLocation.Token(agent),originalPersonal=ChecklistLocation.Token(personal),sourceToken=WorkSources.Token(target),locationToken=ChecklistLocation.Token(ChecklistLocation.Config(target));
         string backupFile=Path.Combine(profile,"all-task-lists.json");var bundle=DashboardData.ExportWithLists(target,backupFile);
-        Check(bundle.schemaVersion==5&&new[]{"agent","personal","checklist"}.All(role=>bundle.lists[role].status=="included"),"backup includes all three external task lists");
+        Check(bundle.schemaVersion==6&&new[]{"agent","personal","checklist"}.All(role=>bundle.lists[role].status=="included"),"backup includes all three external task lists");
         Check(bundle.lists["personal"].sha256==originalPersonalTasks,"personal task copy is byte exact");
         Reject(()=>DashboardData.ExportWithLists(target,personalTasks),"backup cannot overwrite selected Personal tasks");
         Check(bundle.lists["agent"].sha256==originalAgent&&bundle.lists["checklist"].sha256==originalPersonal,"backup copies are byte exact");
@@ -74,6 +74,9 @@ internal static class SafeBackupVerification {
         File.WriteAllText(pref,"{\"theme\":\"Light\",\"startWithWindows\":true}");
         File.WriteAllText(Path.Combine(target,".local","pins.json"),AppData.Json.Serialize(new[]{entries[0].id}));
         WorkSources.Save(target,new WorkSourceChoice{schemaVersion=1,kind="local",path=personalTasks},WorkSources.Token(target,true),true);
+        string third=Path.Combine(profile,"third-list.txt");
+        File.WriteAllText(third,"1. Third list");
+        WorkSources.Save(target,new WorkSourceChoice{schemaVersion=1,kind="local",path=third},WorkSources.Token(target,2),2);
         var full=DashboardData.ExportWithLists(target,Path.Combine(profile,"full-backup.json"));
         Check(full.icons.Count==2&&full.icons[icon].sha256==DashboardData.Hash(File.ReadAllBytes(icon)),"backup includes one copy of an icon shared by a link and category");
         Check(full.icons[browsedIcon].status=="included"&&full.icons[browsedIcon].sha256==DashboardData.Hash(File.ReadAllBytes(browsedIcon)),
@@ -82,7 +85,7 @@ internal static class SafeBackupVerification {
         File.Delete(icon);
         Check(new[]{"agent","personal","checklist"}.All(role=>DashboardData.CurrentRestoreList(fresh,role,entries)==RestoreListStatus.Unset),
             "fresh profile has no active files to displace during restore");
-        var recovered=DashboardData.RestoreCopies(fresh,full,new[]{"agent","personal","checklist"});
+        var recovered=DashboardData.RestoreCopies(fresh,full,DashboardData.BackupListRoles);
         var freshEntries=AppData.ReadEntries(File.ReadAllText(Path.Combine(fresh,"catalog.json")),fresh);
         var recoveredIcon=freshEntries[0].iconPath;
         string restoredBrowsedIcon=freshEntries[1].iconPath;
@@ -102,6 +105,13 @@ internal static class SafeBackupVerification {
             ChecklistLocation.PathFor(fresh)==recovered.Checklist&&ChecklistLocation.Token(recovered.Agent)==originalAgent&&
             ChecklistLocation.Token(recovered.Personal)==originalPersonalTasks&&new ChecklistStore(recovered.Checklist,freshEntries).Read().items.Count==1,
             "fresh restore reconnects both byte-exact task lists and the checklist");
+        Check(WorkSources.Read(fresh,2).path==recovered.Third&&File.ReadAllText(recovered.Third)=="1. Third list",
+            "fresh restore reconnects the third task list");
+        var previousVersion=DashboardData.Load(Path.Combine(profile,"full-backup.json"));
+        previousVersion.schemaVersion=5;
+        previousVersion.lists.Remove("third");
+        DashboardData.RestoreCopies(fresh,previousVersion,false);
+        Check(WorkSources.Read(fresh,2).path==recovered.Third,"an older backup keeps the third list selection");
         string keptPersonal=WorkSources.Read(fresh,true).path;
         var recovery=DashboardData.Load(DashboardData.CreateRestoreRecoveryBackup(fresh));
         Check(recovery.icons.Values.Any(item=>item.status=="included")&&recovery.lists.Values.All(item=>item.status=="included"),
@@ -115,7 +125,7 @@ internal static class SafeBackupVerification {
         var mixed=DashboardData.RestoreCopies(fresh,full,new[]{"agent"});
         Check(WorkSources.Read(fresh).path==mixed.Agent&&WorkSources.Read(fresh,true).path==keptPersonal&&
             ChecklistLocation.PathFor(fresh)==recovered.Checklist,"restore choices operate independently");
-        var old=DashboardData.Load(Path.Combine(profile,"full-backup.json"));old.schemaVersion=4;old.icons=null;
+        var old=DashboardData.Load(Path.Combine(profile,"full-backup.json"));old.schemaVersion=4;old.icons=null;old.lists.Remove("third");
         DashboardData.RestoreCopies(fresh,old,new string[0]);
         Check(WorkSources.Read(fresh,true).path==keptPersonal&&DashboardData.BackupIconSummary(old).Contains("paths only"),
             "older version 4 backup restores and explains its missing icon payload");
@@ -143,7 +153,7 @@ internal sealed partial class WpfDashboard {
             presentDialog=dialog=>{Capture(dialog.Content as UIElement,Path.Combine(profile,"next-license.png"),704,581);if(!Visuals<TextBox>(dialog.Content as DependencyObject).Any(t=>t.Text.Contains("Permission is hereby granted")))throw new Exception("Fluent license not packaged.");dialog.Close();return false;};ShowIconLicense();
             if(NeedsFirstSetup(profile))throw new Exception("Existing profile incorrectly offered first setup.");
             string fresh=Path.Combine(profile,"FreshSetup");Directory.CreateDirectory(fresh);if(!NeedsFirstSetup(fresh))throw new Exception("Fresh profile was not offered setup.");
-            presentDialog=dialog=>{Capture(dialog.Content as UIElement,Path.Combine(profile,"next-setup-finish.png"),744,681);var root=dialog.Content as DependencyObject;ClickIn(root,"Next");ClickIn(root,"Next");ClickIn(root,"Finish");dialog.Close();return true;};ShowSetup();
+            presentDialog=dialog=>{Capture(dialog.Content as UIElement,Path.Combine(profile,"next-setup-finish.png"),744,681);var root=dialog.Content as DependencyObject;ClickIn(root,"Next");ClickIn(root,"Next");ClickIn(root,"Next");ClickIn(root,"Finish");dialog.Close();return true;};ShowSetup();
             if(!File.Exists(setupPath)||sourceBefore!=WorkSources.Token(profile)||locationBefore!=ChecklistLocation.Token(ChecklistLocation.Config(profile)))throw new Exception("Setup Finish failed or changed untouched selections.");
             Console.WriteLine("Next build UI checks passed: Appearance entry, centered swatches, vector publisher, setup navigation/skip and embedded Fluent license.");
         }finally{presentDialog=presenter;}

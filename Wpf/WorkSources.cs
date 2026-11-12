@@ -22,12 +22,19 @@ internal sealed class WorkSourceCache {
     public List<SourceTaskRecord> records {get;set;}
 }
 internal sealed class TaskSourceNotSelectedException : IOException {
-    internal TaskSourceNotSelectedException(bool personal):base("Choose a "+(personal?"Personal tasks":"Agent tasks")+" file in Settings > Tasks."){}
+    internal TaskSourceNotSelectedException(int list):base("Choose a file for Task list "+(list+1)+" in Settings > Tasks."){}
 }
 internal static class WorkSources {
     static readonly UTF8Encoding Utf8=new UTF8Encoding(false,true);
-    internal static string Config(string profile,bool personal=false){return Path.Combine(profile,".local",personal?"personal-tasks-source.json":"work-list-source.json");}
-    internal static string Token(string profile,bool personal=false){return File.Exists(Config(profile,personal))?DashboardData.Hash(DashboardData.ReadBounded(Config(profile,personal),16384)):null;}
+    internal static string Config(string profile,bool personal=false){return Config(profile,personal?1:0);}
+    internal static string Config(string profile,int list){
+        return Path.Combine(profile,".local",new[]{"work-list-source.json","personal-tasks-source.json","task-list-3-source.json"}[list]);
+    }
+    internal static string Token(string profile,bool personal=false){return Token(profile,personal?1:0);}
+    internal static string Token(string profile,int list){
+        string file=Config(profile,list);
+        return File.Exists(file)?DashboardData.Hash(DashboardData.ReadBounded(file,16384)):null;
+    }
     static bool Disconnected(WorkSourceChoice choice){return choice!=null&&choice.schemaVersion==1&&choice.kind=="none"&&String.IsNullOrEmpty(choice.path);}
     internal static void Validate(WorkSourceChoice choice){
         if(Disconnected(choice))return;
@@ -38,26 +45,28 @@ internal static class WorkSources {
         if(choice.kind=="network"&&!p.StartsWith(@"\\"))throw new IOException(@"Use a UNC path such as \\server\share\work.md for Network share.");
         choice.path=Path.GetFullPath(p);
     }
-    internal static WorkSourceChoice Read(string profile,bool personal=false){
-        if(File.Exists(Config(profile,personal))){var c=AppData.Json.Deserialize<WorkSourceChoice>(Utf8.GetString(DashboardData.ReadBounded(Config(profile,personal),16384)));Validate(c);if(Disconnected(c))throw new TaskSourceNotSelectedException(personal);return c;}
-        if(personal)throw new TaskSourceNotSelectedException(true);
+    internal static WorkSourceChoice Read(string profile,bool personal=false){return Read(profile,personal?1:0);}
+    internal static WorkSourceChoice Read(string profile,int list){
+        if(File.Exists(Config(profile,list))){var c=AppData.Json.Deserialize<WorkSourceChoice>(Utf8.GetString(DashboardData.ReadBounded(Config(profile,list),16384)));Validate(c);if(Disconnected(c))throw new TaskSourceNotSelectedException(list);return c;}
+        if(list!=0)throw new TaskSourceNotSelectedException(list);
         string path=DashboardData.WorkPath(profile),legacy=Path.Combine(profile,".local","current-work-source.json");
         if(!File.Exists(path)){
             path=null;
             if(File.Exists(legacy)){var c=AppData.Json.Deserialize<AssistantWorkSource>(File.ReadAllText(legacy));if(c==null||c.schemaVersion!=1)throw new IOException("Invalid existing source configuration.");path=c.path;}
         }
-        if(String.IsNullOrWhiteSpace(path))throw new TaskSourceNotSelectedException(false);
+        if(String.IsNullOrWhiteSpace(path))throw new TaskSourceNotSelectedException(list);
         var result=new WorkSourceChoice{schemaVersion=1,kind=path!=null&&path.StartsWith(@"\\")?"network":"local",path=path};Validate(result);return result;
     }
     internal static string Identity(WorkSourceChoice choice){Validate(choice);return CloudSources.IsCloud(choice.kind)?choice.kind+":"+choice.path:choice.path.ToUpperInvariant();}
     internal static string CachePath(string profile,WorkSourceChoice choice){return Path.Combine(profile,".local","work-list-cache",DashboardData.Hash(Utf8.GetBytes(Identity(choice)))+".json");}
-    internal static void Save(string profile,WorkSourceChoice choice,string expected,bool personal=false){
+    internal static void Save(string profile,WorkSourceChoice choice,string expected,bool personal=false){Save(profile,choice,expected,personal?1:0);}
+    internal static void Save(string profile,WorkSourceChoice choice,string expected,int list){
         if(choice==null)choice=new WorkSourceChoice{schemaVersion=1,kind="none"};
-        Validate(choice);string config=Config(profile,personal);
+        Validate(choice);string config=Config(profile,list);
         using(var mutex=new Mutex(false,ChecklistStore.LockName(config))){bool locked=false;try{
             try{locked=mutex.WaitOne(0);}catch(AbandonedMutexException){locked=true;}
             if(!locked)throw new IOException("Source selection is busy. Try again.");
-            if(Token(profile,personal)!=expected)throw new IOException("Source selection changed in another window. Reopen this dialog; nothing was overwritten.");
+            if(Token(profile,list)!=expected)throw new IOException("Source selection changed in another window. Reopen this dialog; nothing was overwritten.");
             DashboardData.Atomic(config,Utf8.GetBytes(AppData.Json.Serialize(choice)));
         }finally{if(locked)mutex.ReleaseMutex();}}
     }
@@ -78,10 +87,11 @@ internal static class WorkSources {
         if(text.IndexOf('\0')>=0||Utf8.GetByteCount(text)>2097152)throw new IOException("Work list is not supported text.");
         return new WorkSourceCache{schemaVersion=1,source=Identity(choice),text=text,hash=DashboardData.Hash(Utf8.GetBytes(text)),refreshedAt=DateTimeOffset.UtcNow.ToString("o")};
     }
-    internal static void Store(string profile,WorkSourceChoice choice,string expected,WorkSourceCache cache,bool personal=false){
-        string config=Config(profile,personal);using(var mutex=new Mutex(false,ChecklistStore.LockName(config))){bool locked=false;try{
+    internal static void Store(string profile,WorkSourceChoice choice,string expected,WorkSourceCache cache,bool personal=false){Store(profile,choice,expected,cache,personal?1:0);}
+    internal static void Store(string profile,WorkSourceChoice choice,string expected,WorkSourceCache cache,int list){
+        string config=Config(profile,list);using(var mutex=new Mutex(false,ChecklistStore.LockName(config))){bool locked=false;try{
             try{locked=mutex.WaitOne(0);}catch(AbandonedMutexException){locked=true;}
-            if(!locked||Token(profile,personal)!=expected||Identity(Read(profile,personal))!=Identity(choice))throw new IOException("Source changed while refreshing. Refresh the selected source; no cached result was replaced.");
+            if(!locked||Token(profile,list)!=expected||Identity(Read(profile,list))!=Identity(choice))throw new IOException("Source changed while refreshing. Refresh the selected source; no cached result was replaced.");
             DashboardData.Atomic(CachePath(profile,choice),Utf8.GetBytes(AppData.Json.Serialize(cache)));
         }finally{if(locked)mutex.ReleaseMutex();}}
     }

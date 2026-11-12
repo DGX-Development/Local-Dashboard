@@ -16,13 +16,15 @@ internal sealed class SafeRestoreJournal {
     public Dictionary<string,string> after {get;set;}
 }
 internal sealed class RestoredTaskCopies {
-    internal string Agent,Personal,Checklist;
-    internal string Folder {get{return Path.GetDirectoryName(Agent??Personal??Checklist);}}
+    internal string Agent,Personal,Third,Checklist;
+    internal string Folder {get{return Path.GetDirectoryName(Agent??Personal??Third??Checklist);}}
 }
 internal enum RestoreListStatus { Unset, Unavailable, Available }
 
 internal static partial class DashboardData {
-    static readonly string[] SafeNames={"catalog.json",".local/window-preferences.json",".local/sidebar-layout.json",".local/pins.json",".local/work-list-source.json",".local/checklist-location.json",".local/personal-tasks-source.json"};
+    static readonly string[] SafeNames={"catalog.json",".local/window-preferences.json",".local/sidebar-layout.json",".local/pins.json",".local/work-list-source.json",".local/checklist-location.json",".local/personal-tasks-source.json",".local/task-list-3-source.json"};
+    internal static readonly string[] BackupListRoles={"agent","personal","third","checklist"};
+    internal static int TaskListIndex(string role){return Array.IndexOf(BackupListRoles,role);}
     static string SafeFile(string profile,string name){
         if(!SafeNames.Contains(name)&&name!=".local/safe-restore-pending.json")throw new IOException("Unsupported restore file.");
         string path=Path.GetFullPath(Path.Combine(profile,name.Replace('/',Path.DirectorySeparatorChar)));
@@ -45,7 +47,7 @@ internal static partial class DashboardData {
     }
     static void ValidateTaskCopies(DashboardBackup bundle,List<Entry> entries,string check){
         if(bundle.schemaVersion<3)return;
-        string[] roles=bundle.schemaVersion>=4?new[]{"agent","personal","checklist"}:new[]{"agent","checklist"};
+        string[] roles=bundle.schemaVersion>=6?BackupListRoles:bundle.schemaVersion>=4?new[]{"agent","personal","checklist"}:new[]{"agent","checklist"};
         if(bundle.lists==null||bundle.lists.Count!=roles.Length||roles.Any(role=>!bundle.lists.ContainsKey(role)))throw new IOException("Backup task copies are invalid.");
         foreach(string role in roles){
             var copy=bundle.lists[role];
@@ -61,11 +63,12 @@ internal static partial class DashboardData {
     internal static DashboardBackup ExportWithLists(string profile,string destination,bool recovery=false){
         destination=Path.GetFullPath(destination);GuardPath(destination);
         using(Lock(ChecklistLocation.Config(profile)))using(new Lease(SafeNames.Select(n=>SafeFile(profile,n)))){
-            string personal=ChecklistLocation.PathFor(profile);WorkSourceChoice source=null;
-            try{source=WorkSources.Read(profile);}catch(IOException){}
-            WorkSourceChoice personalSource=null;try{personalSource=WorkSources.Read(profile,true);}catch(IOException){}
-            if(!recovery&&destination.StartsWith(Path.GetFullPath(profile).TrimEnd('\\')+"\\.local\\",StringComparison.OrdinalIgnoreCase)||SafeNames.Any(n=>String.Equals(destination,SafeFile(profile,n),StringComparison.OrdinalIgnoreCase))||String.Equals(destination,personal,StringComparison.OrdinalIgnoreCase)||source!=null&&String.Equals(destination,source.path,StringComparison.OrdinalIgnoreCase)||personalSource!=null&&String.Equals(destination,personalSource.path,StringComparison.OrdinalIgnoreCase))throw new IOException("Choose a backup destination separate from Dashboard and your task lists.");
-            var bundle=new DashboardBackup{product="Local Dashboard",schemaVersion=5,createdAt=DateTimeOffset.UtcNow.ToString("o"),files=new Dictionary<string,string>(),hashes=new Dictionary<string,string>(),lists=new Dictionary<string,BackupTaskCopy>()};
+            string personal=ChecklistLocation.PathFor(profile);
+            var sources=new WorkSourceChoice[3];
+            for(int list=0;list<sources.Length;list++)
+                try{sources[list]=WorkSources.Read(profile,list);}catch(IOException){}
+            if(!recovery&&destination.StartsWith(Path.GetFullPath(profile).TrimEnd('\\')+"\\.local\\",StringComparison.OrdinalIgnoreCase)||SafeNames.Any(n=>String.Equals(destination,SafeFile(profile,n),StringComparison.OrdinalIgnoreCase))||String.Equals(destination,personal,StringComparison.OrdinalIgnoreCase)||sources.Any(source=>source!=null&&String.Equals(destination,source.path,StringComparison.OrdinalIgnoreCase)))throw new IOException("Choose a backup destination separate from Dashboard and your task lists.");
+            var bundle=new DashboardBackup{product="Local Dashboard",schemaVersion=6,createdAt=DateTimeOffset.UtcNow.ToString("o"),files=new Dictionary<string,string>(),hashes=new Dictionary<string,string>(),lists=new Dictionary<string,BackupTaskCopy>()};
             foreach(string name in Names.Concat(new[]{".local/personal-tasks-source.json"})){
                 byte[] bytes=null;
                 if(name!=".local/current-work.json"&&name!=".local/agent-work.txt"){
@@ -74,8 +77,12 @@ internal static partial class DashboardData {
                 bundle.files[name]=bytes==null?null:Convert.ToBase64String(bytes);bundle.hashes[name]=Hash(bytes);
             }
             using(Lock(personal))bundle.lists["checklist"]=ReadTaskCopy(personal,"json",!File.Exists(ChecklistLocation.Config(profile)));
-            bundle.lists["agent"]=source==null?MissingCopy("txt","unavailable"):CloudSources.IsCloud(source.kind)?MissingCopy("txt","online"):ReadTaskCopy(source.path,Path.GetExtension(source.path).Equals(".md",StringComparison.OrdinalIgnoreCase)?"md":"txt",false);
-            bundle.lists["personal"]=personalSource==null?MissingCopy("txt","unavailable"):CloudSources.IsCloud(personalSource.kind)?MissingCopy("txt","online"):ReadTaskCopy(personalSource.path,Path.GetExtension(personalSource.path).Equals(".md",StringComparison.OrdinalIgnoreCase)?"md":"txt",false);
+            for(int list=0;list<sources.Length;list++)
+            {
+                var source=sources[list];
+                bundle.lists[BackupListRoles[list]]=source==null?MissingCopy("txt","unavailable"):CloudSources.IsCloud(source.kind)?MissingCopy("txt","online"):
+                    ReadTaskCopy(source.path,Path.GetExtension(source.path).Equals(".md",StringComparison.OrdinalIgnoreCase)?"md":"txt",false);
+            }
             bundle.icons=CaptureBackupIcons(Decode(bundle));
             Validate(profile,bundle);
             var bytesToSave=Utf8.GetBytes(AppData.Json.Serialize(bundle));
@@ -93,21 +100,29 @@ internal static partial class DashboardData {
 
     internal static string TaskCopySummary(DashboardBackup backup){
         var copies=TaskCopies(backup);
-        return String.Join("\r\n",new[]{"agent","personal","checklist"}.Select(role=>(role=="agent"?"Agent tasks: ":role=="personal"?"Personal tasks: ":"Checklist: ")+(copies[role].status=="included"?"copy included.":copies[role].status=="online"?"not included; direct online access is unavailable.":"not included; the file was unavailable or this older backup did not contain it.")));
+        return String.Join("\r\n",BackupListRoles.Select(role=>(role=="checklist"?"Checklists":"Task list "+(TaskListIndex(role)+1))+": "+
+            (copies[role].status=="included"?"copy included.":copies[role].status=="online"?"not included; direct online access is unavailable.":"not included; the file was unavailable or this older backup did not contain it.")));
     }
     internal static Dictionary<string,BackupTaskCopy> TaskCopies(DashboardBackup bundle){
-        if(bundle.schemaVersion>=4)return bundle.lists;
-        if(bundle.schemaVersion==3){var old=new Dictionary<string,BackupTaskCopy>(bundle.lists);old["personal"]=MissingCopy("txt","unavailable");return old;}
-        var files=Decode(bundle);var result=new Dictionary<string,BackupTaskCopy>();
-        foreach(string role in new[]{"agent","checklist"}){
-            byte[] bytes=files[role=="agent"?".local/agent-work.txt":".local/current-work.json"];
-            result[role]=bytes==null?MissingCopy(role=="agent"?"txt":"json","unavailable"):new BackupTaskCopy{format=role=="agent"?"txt":"json",status="included",data=Convert.ToBase64String(bytes),sha256=Hash(bytes)};
+        if(bundle.schemaVersion>=6)return bundle.lists;
+        var result=BackupListRoles.ToDictionary(role=>role,role=>MissingCopy(role=="checklist"?"json":"txt","unavailable"));
+        if(bundle.schemaVersion>=3)
+        {
+            foreach(var item in bundle.lists)result[item.Key]=item.Value;
         }
-        result["personal"]=MissingCopy("txt","unavailable");return result;
+        else
+        {
+            var files=Decode(bundle);
+            foreach(string role in new[]{"agent","checklist"}){
+                byte[] bytes=files[role=="agent"?".local/agent-work.txt":".local/current-work.json"];
+                if(bytes!=null)result[role]=new BackupTaskCopy{format=role=="agent"?"txt":"json",status="included",data=Convert.ToBase64String(bytes),sha256=Hash(bytes)};
+            }
+        }
+        return result;
     }
     internal static void CheckBackup(string profile,DashboardBackup bundle){Validate(profile,bundle);}
     internal static RestoredTaskCopies RestoreCopies(string profile,DashboardBackup bundle,bool useCopies,Action<int> fault=null){
-        return RestoreCopies(profile,bundle,useCopies?new[]{"agent","personal","checklist"}:new string[0],fault);
+        return RestoreCopies(profile,bundle,useCopies?BackupListRoles:new string[0],fault);
     }
     internal static RestoredTaskCopies RestoreCopies(string profile,DashboardBackup bundle,IEnumerable<string> useCopies,Action<int> fault=null){
         Validate(profile,bundle);
@@ -132,15 +147,16 @@ internal static partial class DashboardData {
             var result=new RestoredTaskCopies();var copies=TaskCopies(bundle);
             string folder=Path.Combine(profile,".local","restored-lists",DateTime.UtcNow.ToString("yyMMdd-HHmmss")+"-"+Guid.NewGuid().ToString("N").Substring(0,8));GuardPath(Path.Combine(folder,"check"));
             if(copies.Values.Any(copy=>copy.status=="included")&&(Directory.Exists(folder)||Path.Combine(folder,"My Checklist.json").Length>218))throw new IOException("The restored-list destination cannot safely hold editable copies. No original list was changed.");
-            foreach(string role in new[]{"agent","personal","checklist"})if(copies[role].status=="included"){
-                Directory.CreateDirectory(folder);string file=Path.Combine(folder,role=="agent"?"Agent Tasks."+copies[role].format:role=="personal"?"Personal Tasks."+copies[role].format:"My Checklist.json");
+            foreach(string role in BackupListRoles)if(copies[role].status=="included"){
+                Directory.CreateDirectory(folder);string file=Path.Combine(folder,role=="checklist"?"My Checklist.json":"Task list "+(TaskListIndex(role)+1)+"."+copies[role].format);
                 using(var stream=new FileStream(file,FileMode.CreateNew,FileAccess.Write,FileShare.None)){var bytes=Convert.FromBase64String(copies[role].data);stream.Write(bytes,0,bytes.Length);stream.Flush(true);}
                 if(Hash(ReadBounded(file))!=copies[role].sha256)throw new IOException("Restored task copy could not be verified. Original lists are unchanged.");
-                if(role=="agent")result.Agent=file;else if(role=="personal")result.Personal=file;else result.Checklist=file;
+                if(role=="agent")result.Agent=file;else if(role=="personal")result.Personal=file;else if(role=="third")result.Third=file;else result.Checklist=file;
             }
             {
                 if(result.Agent!=null&&useCopies.Contains("agent"))after[".local/work-list-source.json"]=Convert.ToBase64String(Utf8.GetBytes(AppData.Json.Serialize(new WorkSourceChoice{schemaVersion=1,kind="local",path=result.Agent})));
                 if(result.Personal!=null&&useCopies.Contains("personal"))after[".local/personal-tasks-source.json"]=Convert.ToBase64String(Utf8.GetBytes(AppData.Json.Serialize(new WorkSourceChoice{schemaVersion=1,kind="local",path=result.Personal})));
+                if(result.Third!=null&&useCopies.Contains("third"))after[".local/task-list-3-source.json"]=Convert.ToBase64String(Utf8.GetBytes(AppData.Json.Serialize(new WorkSourceChoice{schemaVersion=1,kind="local",path=result.Third})));
                 if(result.Checklist!=null&&useCopies.Contains("checklist"))after[".local/checklist-location.json"]=Convert.ToBase64String(Utf8.GetBytes(AppData.Json.Serialize(new ChecklistLocationChoice{schemaVersion=1,path=result.Checklist})));
             }
             string pending=SafeFile(profile,".local/safe-restore-pending.json");
@@ -292,7 +308,7 @@ internal static partial class DashboardData {
                 var path=ChecklistLocation.PathFor(profile);
                 return File.Exists(path)&&new ChecklistStore(path,entries).Read()!=null?RestoreListStatus.Available:File.Exists(ChecklistLocation.Config(profile))?RestoreListStatus.Unavailable:RestoreListStatus.Unset;
             }
-            var source=WorkSources.Read(profile,role=="personal");
+            var source=WorkSources.Read(profile,TaskListIndex(role));
             if(CloudSources.IsCloud(source.kind))return RestoreListStatus.Unavailable;
             return Text(ReadBounded(source.path,1048576))!=null?RestoreListStatus.Available:RestoreListStatus.Unavailable;
         }
@@ -304,7 +320,16 @@ internal static partial class DashboardData {
     static void RecoverSafeCore(string profile){
         string pending=SafeFile(profile,".local/safe-restore-pending.json");if(!File.Exists(pending))return;
         var journal=AppData.Json.Deserialize<SafeRestoreJournal>(Text(ReadBounded(pending,33554432)));
-        if(journal!=null&&journal.schemaVersion==1&&journal.before!=null&&journal.after!=null&&journal.before.Count==SafeNames.Length-1&&journal.after.Count==SafeNames.Length-1&&!journal.before.ContainsKey(".local/personal-tasks-source.json")&&!journal.after.ContainsKey(".local/personal-tasks-source.json")){string path=SafeFile(profile,".local/personal-tasks-source.json");string retained=File.Exists(path)?Convert.ToBase64String(ReadBounded(path)):null;journal.before[".local/personal-tasks-source.json"]=retained;journal.after[".local/personal-tasks-source.json"]=retained;}
+        if(journal!=null&&journal.schemaVersion==1&&journal.before!=null&&journal.after!=null)
+        {
+            foreach(string name in new[]{".local/personal-tasks-source.json",".local/task-list-3-source.json"})
+            {
+                if(journal.before.ContainsKey(name)||journal.after.ContainsKey(name))continue;
+                string path=SafeFile(profile,name);
+                string retained=File.Exists(path)?Convert.ToBase64String(ReadBounded(path)):null;
+                journal.before[name]=retained;journal.after[name]=retained;
+            }
+        }
         if(journal==null||journal.schemaVersion!=1||journal.before==null||journal.after==null||journal.before.Count!=SafeNames.Length||journal.after.Count!=SafeNames.Length||SafeNames.Any(n=>!journal.before.ContainsKey(n)||!journal.after.ContainsKey(n)))throw new IOException("Interrupted restore record is invalid; recovery files were kept.");
         foreach(string name in SafeNames){
             foreach(string value in new[]{journal.before[name],journal.after[name]})if(value!=null&&Convert.FromBase64String(value).Length>2097152)throw new IOException("Interrupted restore record exceeds its limit.");

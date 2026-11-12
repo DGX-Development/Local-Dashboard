@@ -9,8 +9,27 @@ internal sealed class ChecklistLocationChoice { public int schemaVersion{get;set
 internal static class ChecklistLocation {
     internal static string Config(string profile){return Path.Combine(profile,".local","checklist-location.json");}
     internal static string Token(string path){return File.Exists(path)?DashboardData.Hash(DashboardData.ReadBounded(path)):null;}
+    internal static string DefaultPath(string profile){return Path.Combine(profile,".local","current-work.json");}
+    internal static void UseDefault(string profile,string expectedConfig,List<Entry> entries)
+    {
+        string config=Config(profile);
+        using(var mutex=new Mutex(false,ChecklistStore.LockName(config)))
+        {
+            bool held=false;
+            try
+            {
+                try{held=mutex.WaitOne(0);}catch(AbandonedMutexException){held=true;}
+                if(!held||Token(config)!=expectedConfig)throw new IOException("The checklist location changed. Reopen Settings.");
+                if(File.Exists(Path.Combine(profile,".local","restore-pending.json"))||File.Exists(Path.Combine(profile,".local","safe-restore-pending.json")))
+                    throw new IOException("Finish recovering the interrupted configuration restore before changing the checklist location.");
+                new ChecklistStore(DefaultPath(profile),entries).Read();
+                File.Delete(config);
+            }
+            finally{if(held)mutex.ReleaseMutex();}
+        }
+    }
     internal static string PathFor(string profile){
-        if(!File.Exists(Config(profile)))return Path.Combine(profile,".local","current-work.json");
+        if(!File.Exists(Config(profile)))return DefaultPath(profile);
         var choice=AppData.Json.Deserialize<ChecklistLocationChoice>(Encoding.UTF8.GetString(DashboardData.ReadBounded(Config(profile),16384)));
         if(choice==null||choice.schemaVersion!=1)throw new IOException("The checklist location is invalid. Choose its file in Settings > Tasks.");
         return Validate(profile,choice.path,false);

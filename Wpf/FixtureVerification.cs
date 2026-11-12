@@ -13,6 +13,8 @@ internal sealed partial class WpfDashboard
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     static extern IntPtr SendMessage(IntPtr handle,uint message,IntPtr wParam,IntPtr lParam);
     void VerifyVisibleIconSave(){
+        VerifyNativeIcon();
+        Console.WriteLine("Native launch accent verified: "+DashboardAccent.Format(DashboardAccent.Selected)+".");
         VerifyDialog(Settings,"Local Dashboard settings","visible-settings-save.png",dialog=>{
             Visuals<TextBox>(dialog).Single(t=>System.Windows.Automation.AutomationProperties.GetName(t)=="Accent hex color").Text="#FF6600";
             WaitForAppearancePreview();
@@ -33,11 +35,18 @@ internal sealed partial class WpfDashboard
         Console.WriteLine("Shell taskbar properties read back: "+shellBrand.AppId+" / "+shellBrand.IconResource+". Actual taskbar appearance still requires visual verification.");
         foreach(int kind in new[]{0,1}){
             var handle=SendMessage(hwnd,0x007F,new IntPtr(kind),IntPtr.Zero);if(handle==IntPtr.Zero)throw new Exception("Missing native window icon kind "+kind);
-            using(var icon=System.Drawing.Icon.FromHandle(handle))using(var image=icon.ToBitmap()){
-                var counts=new Dictionary<int,int>();for(int y=0;y<image.Height;y++)for(int x=0;x<image.Width;x++){var pixel=image.GetPixel(x,y);if(pixel.A<128||pixel.R+pixel.G+pixel.B<260)continue;int key=pixel.ToArgb();counts[key]=counts.ContainsKey(key)?counts[key]+1:1;}
-                var actual=System.Drawing.Color.FromArgb(counts.OrderByDescending(p=>p.Value).First().Key);
-                if(Math.Abs(actual.R-expected.R)>8||Math.Abs(actual.G-expected.G)>8||Math.Abs(actual.B-expected.B)>8)throw new Exception("Native icon does not match accent: "+actual+" vs "+expected);
-                Console.WriteLine("Native "+(kind==0?"small":"large")+" window icon: "+DashboardAccent.Format(actual));
+            using(var icon=System.Drawing.Icon.FromHandle(handle))
+            using(var image=icon.ToBitmap())
+            using(var generated=new System.Drawing.Icon(iconPath,image.Width,image.Height))
+            using(var reference=System.Drawing.Icon.FromHandle(generated.Handle))
+            using(var expectedFrame=reference.ToBitmap())
+            {
+                if(expectedFrame.Size!=image.Size)throw new Exception("Native icon dimensions do not match the generated frame.");
+                for(int y=0;y<image.Height;y++)
+                    for(int x=0;x<image.Width;x++)
+                        if(image.GetPixel(x,y).ToArgb()!=expectedFrame.GetPixel(x,y).ToArgb())
+                            throw new Exception("Native icon pixels differ from the generated "+image.Width+" x "+image.Height+" frame.");
+                Console.WriteLine("Native "+(kind==0?"small":"large")+" window icon matches the generated "+image.Width+" x "+image.Height+" frame.");
             }
         }
     }
@@ -68,7 +77,7 @@ internal sealed partial class WpfDashboard
         var store=new ChecklistStore(checklist,entries);var doc=store.Read();store.Upsert(new WorkPatch{expectedRevision=doc.revision,id="personal-test",title="Preserved fixture",details="Existing details"});
         WorkSources.Save(profile,new WorkSourceChoice{schemaVersion=1,kind="local",path=source},WorkSources.Token(profile));
         SetCompact(true);Select("work");RefreshWorkAndWait();
-        if(Visuals<TextBox>(rows).Any(t=>!t.IsReadOnly)||!Visuals<TextBlock>(rows).Any(t=>t.Text=="1. Twitch alerts"))throw new Exception("Quinn work did not render separated read-only items.");
+        if(Visuals<TextBox>(rows).Any(t=>!t.IsReadOnly)||!Visuals<TextBlock>(rows).Any(t=>t.Text=="1. Twitch alerts"))throw new Exception("Task list 1 did not render separate items.");
         CaptureShell(profile,"quinn-work.png",460,760);AuditScrollbars(window);
         var disclosure=Visuals<Expander>(rows).First();disclosure.ApplyTemplate();
         var header=disclosure.Template.FindName("HeaderSite",disclosure) as System.Windows.Controls.Primitives.ToggleButton;
@@ -80,57 +89,61 @@ internal sealed partial class WpfDashboard
         if(provider==null)throw new Exception("Expander lost its accessibility ExpandCollapse pattern.");
         provider.Expand();window.UpdateLayout();if(!disclosure.IsExpanded)throw new Exception("Accessible expand failed.");
         CaptureShell(profile,"disclosure-expanded.png",460,760);provider.Collapse();window.UpdateLayout();if(disclosure.IsExpanded)throw new Exception("Accessible collapse failed.");
-        if(heading.Margin.Bottom<18||Find<StackPanel>("WorkNavigation").Children.OfType<WrapPanel>().First().Margin.Bottom<8)throw new Exception("Work heading/control spacing is still cramped.");
+        if(Find<DockPanel>("SearchBar").Margin.Bottom<14)throw new Exception("Work search spacing is still cramped.");
         Console.WriteLine("2.1.2 disclosure passed: custom rounded chrome, tab/focus properties, preserved accessibility ExpandCollapse provider, expand/collapse, and heading/control spacing.");
         File.WriteAllText(source,sourceBefore.Replace("Twitch alerts","Refreshed alerts"));RefreshWorkAndWait();
         if(!Visuals<TextBlock>(rows).Any(t=>t.Text=="1. Refreshed alerts"))throw new Exception("Refresh did not reread source.");
         ClickWork("Checklists");
-        var add=Visuals<TextBox>(rows).Single(t=>System.Windows.Automation.AutomationProperties.GetName(t)=="New checklist item");add.Text="Inline added task";ClickWork("Add checklist item");
-        var added=store.Read().items.Single(i=>i.title=="Inline added task");
-        var itemRow=rows.Children.OfType<StackPanel>().Single(r=>Equals(r.Tag,added.id));ClickIn(itemRow,"Edit");
-        Visuals<TextBox>(itemRow).Single(t=>System.Windows.Automation.AutomationProperties.GetName(t)=="Checklist title").Text="Inline edited task";
-        Visuals<TextBox>(itemRow).Single(t=>System.Windows.Automation.AutomationProperties.GetName(t)=="Checklist details").Text="Editable details";
-        CaptureShell(profile,"inline-edit.png",460,760);AuditScrollbars(window);ClickIn(itemRow,"Save");
-        if(store.Read().items.Single(i=>i.id==added.id).details!="Editable details")throw new Exception("Inline edit did not persist.");
-        itemRow=rows.Children.OfType<StackPanel>().Single(r=>Equals(r.Tag,added.id));ClickIn(itemRow,"Edit");Visuals<TextBox>(itemRow).First().Text="Cancelled title";ClickIn(itemRow,"Cancel");
-        if(store.Read().items.Any(i=>i.title=="Cancelled title"))throw new Exception("Cancel saved a title.");
-        itemRow=rows.Children.OfType<StackPanel>().Single(r=>Equals(r.Tag,added.id));Visuals<CheckBox>(itemRow).Single().IsChecked=true;
-        if(store.Read().items.Single(i=>i.id==added.id).state!="done")throw new Exception("Completion failed.");
+        var draft=store.Upsert(new WorkPatch{expectedRevision=store.Read().revision,id="checkoff-fixture",title="Checklist checkoff fixture"});
+        RenderTaskItems();
+        var itemRow=rows.Children.OfType<StackPanel>().Single(row=>Equals(row.Tag,"checkoff-fixture"));
+        Visuals<CheckBox>(itemRow).Single().IsChecked=true;
+        if(store.Read().items.Single(i=>i.id=="checkoff-fixture").state!="done")throw new Exception("Completion failed.");
         Visuals<Button>(rows).Single(x=>x.Content is string&&((string)x.Content).StartsWith("Done (")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-        itemRow=rows.Children.OfType<StackPanel>().Single(r=>Equals(r.Tag,added.id));ClickIn(itemRow,"Edit");Visuals<TextBox>(itemRow).First().Text="Edited while Done";ClickIn(itemRow,"Save");
-        if(store.Read().items.Single(i=>i.id==added.id).state!="done")throw new Exception("Editing Done restored completion.");
-        itemRow=rows.Children.OfType<StackPanel>().Single(r=>Equals(r.Tag,added.id));Visuals<CheckBox>(itemRow).Single().IsChecked=false;
-        if(store.Read().items.Single(i=>i.id==added.id).state!="current")throw new Exception("Restore failed.");
-        doneView=false;RenderCompact(true);itemRow=rows.Children.OfType<StackPanel>().Single(r=>Equals(r.Tag,added.id));ClickIn(itemRow,"Edit");var beforeConflict=store.Read();store.Upsert(new WorkPatch{expectedRevision=beforeConflict.revision,id=added.id,title="External concurrent update",details="Retain me"});
-        Visuals<TextBox>(itemRow).First().Text="Stale editor";ClickIn(itemRow,"Save");
-        if(store.Read().items.Single(i=>i.id==added.id).title!="External concurrent update"||!Visuals<TextBlock>(itemRow).Any(t=>t.Text.Contains("changed since")))throw new Exception("Stale inline edit was not safely rejected.");
-        ClickIn(itemRow,"Cancel");CaptureShell(profile,"my-checklist.png",460,760);
-        ClickWork("Agent tasks");File.Delete(source);RefreshWorkAndWait();if(!Visuals<TextBlock>(rows).Any(t=>t.Text.StartsWith("Refresh failed;")))throw new Exception("Missing source not reported.");
+        itemRow=rows.Children.OfType<StackPanel>().Single(row=>Equals(row.Tag,"checkoff-fixture"));
+        Visuals<CheckBox>(itemRow).Single().IsChecked=false;
+        if(store.Read().items.Single(i=>i.id=="checkoff-fixture").state!="current")throw new Exception("Restore failed.");
+        doneView=false;RenderTaskItems();CaptureShell(profile,"my-checklist.png",460,760);
+        ClickWork("Task list 1");RefreshWorkAndWait();File.Delete(source);RefreshWorkAndWait();if(!Visuals<TextBlock>(rows).Any(t=>t.Text.StartsWith("Could not load the selected file.")))throw new Exception("Missing source not reported.");
         if(!Visuals<TextBlock>(rows).Any(t=>t.Text=="1. Refreshed alerts"))throw new Exception("Offline refresh discarded cached work.");
         ClickWork("Checklists");if(!Visuals<CheckBox>(rows).Any())throw new Exception("Source failure blocked checklist.");
-        File.WriteAllText(source,sourceBefore);ClickWork("Agent tasks");
+        File.WriteAllText(source,sourceBefore);ClickWork("Task list 1");
         foreach(var size in new[]{new Size(520,420),new Size(580,760),new Size(700,800)}){window.Width=size.Width;window.Height=size.Height;window.UpdateLayout();AuditHeader();AuditScrollbars(window);Capture(window.Content as UIElement,Path.Combine(profile,"work-"+size.Width+".png"),(int)size.Width-16,(int)size.Height-39);}
         window.Width=580;window.Height=760;window.UpdateLayout();
         foreach(int scale in new[]{150,200}){var target=window.Content as FrameworkElement;var image=new System.Windows.Media.Imaging.RenderTargetBitmap((int)(target.ActualWidth*scale/100),(int)(target.ActualHeight*scale/100),96.0*scale/100,96.0*scale/100,PixelFormats.Pbgra32);image.Render(target);var encoder=new System.Windows.Media.Imaging.PngBitmapEncoder();encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(image));using(var stream=File.Create(Path.Combine(profile,"work-render-"+scale+".png")))encoder.Save(stream);}
         var dpi=VisualTreeHelper.GetDpi(window);Console.WriteLine("Actual window DPI: "+dpi.PixelsPerInchX+" x "+dpi.PixelsPerInchY);
         if(File.ReadAllText(source)!=sourceBefore)throw new Exception("Rendering changed authoritative source.");
         Select("software");foreach(var size in new[]{new Size(760,540),new Size(1280,860)}){window.Width=size.Width;window.Height=size.Height;window.UpdateLayout();AuditHeader();AuditScrollbars(window);}
-        Console.WriteLine("Experience checks passed: structured read-only Quinn list, refresh/missing source, inline add/edit/cancel, completion/Done edit/restore, stale edit rejection, toolbar geometry and all discovered scrollbar templates at compact/full sizes.");
+        Console.WriteLine("Experience checks passed: structured task list, refresh/missing source, checklist completion and restore, toolbar geometry and all discovered scrollbar templates at compact/full sizes.");
     }
     void RefreshWorkAndWait(){
-        RefreshWorkSource(personalTasksView);
+        RefreshDisplayedTasks(true);
         var frame=new DispatcherFrame();var until=DateTime.UtcNow.AddSeconds(10);
         var timer=new DispatcherTimer(DispatcherPriority.Background){Interval=TimeSpan.FromMilliseconds(20)};
-        timer.Tick+=(s,e)=>{if(!workReadStatus.StartsWith("Reading selected")||DateTime.UtcNow>=until)frame.Continue=false;};
+        timer.Tick+=(s,e)=>{if((taskReads[0]==null||taskReads[0].IsCompleted)&&!taskReadStatus[0].StartsWith("Loading the selected file")||DateTime.UtcNow>=until)frame.Continue=false;};
         timer.Start();try{Dispatcher.PushFrame(frame);}finally{timer.Stop();}
-        if(workReadStatus.StartsWith("Reading selected"))throw new Exception("Refresh did not finish within the fixture deadline.");
+        if((taskReads[0]!=null&&!taskReads[0].IsCompleted)||taskReadStatus[0].StartsWith("Loading the selected file"))throw new Exception("Refresh did not finish within the fixture deadline.");
         window.UpdateLayout();
     }
-    void ClickWork(string label){var header=Find<StackPanel>("WorkNavigation");ClickIn(Visuals<Button>(header).Any(b=>Equals(b.Content,label))?header:rows,label);}
+    void ClickWork(string label){
+        var button=TaskNavigationPanel().Children.OfType<Button>()
+            .FirstOrDefault(item=>System.Windows.Automation.AutomationProperties.GetName(item)==label);
+        if(button!=null)button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        else ClickIn(rows,label);
+    }
     static void ClickIn(DependencyObject root,string label){Visuals<Button>(root).Single(b=>Equals(b.Content,label)).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));}
     void AuditHeader(){
-        var panel=Find<WrapPanel>("CompactToolbar");if(panel.Children.Count!=4||!panel.Children.OfType<Button>().Any(b=>Equals(b.Tag,"always-on-top")))throw new Exception("Missing header actions or pin control.");
-        foreach(Button b in panel.Children.OfType<Button>().Where(x=>x.Visibility==Visibility.Visible)){if(b.ActualWidth>145||b.ActualHeight<25||b.HorizontalContentAlignment!=HorizontalAlignment.Center)throw new Exception("Header actions are not consistently sized and centered.");var group=(StackPanel)b.Content;var point=group.TranslatePoint(new Point(0,0),b);if(Math.Abs((b.ActualWidth-group.ActualWidth)/2-point.X)>2||Math.Abs((b.ActualHeight-group.ActualHeight)/2-point.Y)>2)throw new Exception("Header label/icon group is off center.");if(b.TranslatePoint(new Point(b.ActualWidth,0),panel).X>panel.ActualWidth+1)throw new Exception("Header action overflows.");}
+        Panel panel=Compact?(Panel)Find<WrapPanel>("CompactToolbar"):Find<StackPanel>("FullWindowActions");
+        var actions=panel.Children.OfType<Button>().ToArray();
+        if(actions.Length!=2||!actions.Any(button=>Equals(button.Tag,"compact-toggle"))||!actions.Any(button=>Equals(button.Tag,"always-on-top")))
+            throw new Exception("Expected the view and pin actions in the active header.");
+        foreach(var button in actions)
+        {
+            if(button.ActualHeight!=36||button.ActualWidth!=36||String.IsNullOrEmpty(System.Windows.Automation.AutomationProperties.GetName(button)))
+                throw new Exception("A header action has an unexpected size or missing name.");
+            if(button.TranslatePoint(new Point(button.ActualWidth,0),panel).X>panel.ActualWidth+1)
+                throw new Exception("A header action overflows.");
+        }
     }
     static void AuditScrollbars(DependencyObject root){
         foreach(var bar in Visuals<System.Windows.Controls.Primitives.ScrollBar>(root)){
@@ -148,15 +161,12 @@ internal sealed partial class WpfDashboard
             toggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));window.UpdateLayout();
             if(Compact||System.Windows.Automation.AutomationProperties.GetName(toggle)!="Dashboard"||heading.Text!="Tasks")throw new Exception("Work navigation or return label failed.");
             if(new Rect(window.Left,window.Top,window.Width,window.Height)!=bounds)throw new Exception("Normal navigation resized or moved the window.");
-            var modes=Find<StackPanel>("WorkNavigation").Children.OfType<WrapPanel>().First();
-            var refresh=modes.Children.OfType<Button>().Last();
+            var refresh=Find<DockPanel>("SearchBar").Children.OfType<Button>().Single(button=>Equals(button.Tag,"task-refresh"));
             if(System.Windows.Automation.AutomationProperties.GetName(refresh)!="Refresh"||refresh.Height!=36)
                 throw new Exception("Refresh is missing from the task selector row.");
             ClickWork("Checklists");window.UpdateLayout();
-            modes=Find<StackPanel>("WorkNavigation").Children.OfType<WrapPanel>().First();
-            if(modes.Children.OfType<Button>().Any(button=>System.Windows.Automation.AutomationProperties.GetName(button)=="Refresh"))
-                throw new Exception("Checklists shows a task-file Refresh button.");
-            ClickWork("Agent tasks");toggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));window.UpdateLayout();
+            if(refresh.Visibility!=Visibility.Visible)throw new Exception("Checklists cannot refresh.");
+            ClickWork("Task list 1");toggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));window.UpdateLayout();
             if(Compact||System.Windows.Automation.AutomationProperties.GetName(toggle)!="Tasks")throw new Exception("Dashboard return failed.");
         }
         SetCompact(true);window.UpdateLayout();
@@ -188,7 +198,7 @@ internal sealed partial class WpfDashboard
             if(Math.Abs(rp.Y-cp.Y)>1||rp.X>=cp.X)throw new Exception("Report footer is not one bottom row.");
             RenderReportsInto(reportsRows,true);if(reportsRows.Margin.Right<14)throw new Exception("Report scrollbar gutter missing.");
         });
-        if(reportsWindow!=null||rows.Margin.Right<14)throw new Exception("Reports cleanup or main scrollbar gutter failed.");
+        if(reportsWindow!=null||rows.Margin.Right<7)throw new Exception("Reports cleanup or main scrollbar gutter failed.");
         VerifyAssistantWork();
         VerifyViewControls();
         string catalog=Path.Combine(profile,"catalog.json");

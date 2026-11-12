@@ -18,18 +18,21 @@ internal sealed partial class WpfDashboard
     readonly string profile;
     readonly bool fixture;
     readonly bool refreshShell;
+    readonly bool desktopReview;
     readonly StackPanel rows;
     readonly TextBox search;
     readonly TextBlock heading;
     SidebarLayout layout;
     System.Collections.Generic.List<Entry> entries;
     string section="software", lastDashboardSection="software", expandedSection;
+    bool clearingSearch;
 
-    WpfDashboard(string profile,bool fixture,bool refreshShell)
+    WpfDashboard(string profile,bool fixture,bool refreshShell,bool desktopReview)
     {
         this.profile=profile;
         this.fixture=fixture;
         this.refreshShell=refreshShell;
+        this.desktopReview=desktopReview;
         window=Load<Window>("Shell.xaml");
         window.Title="Local Dashboard";
         rows=Find<StackPanel>("Rows");
@@ -66,14 +69,27 @@ internal sealed partial class WpfDashboard
         });
         Find<MenuItem>("DirectoryMenu").Click+=(s,e)=>Select(DashboardSection());
         Find<MenuItem>("WorkMenu").Click+=(s,e)=>Select("work");
-        Find<MenuItem>("ReportsMenu").Click+=(s,e)=>{agentUpdatesView=true;Select("work");};
         string[,] menuIcons={{"RefreshMenu","updates"},{"BackupMenu","config-backup"},{"RestoreMenu","config-restore"},{"SettingsMenu","settings"},{"HideMenu","hide"},{"ExitMenu","exit"},
-            {"DirectoryMenu","dashboard"},{"CompactMenu","compact"},{"WorkMenu","checklist"},{"ReportsMenu","reports"},{"TopMenu","pin"},
+            {"DirectoryMenu","dashboard"},{"CompactMenu","compact"},{"WorkMenu","checklist"},{"TopMenu","pin"},
             {"SetupMenu","setup"},{"GuideMenu","help"},{"ReportIssueMenu","report"},{"AboutMenu","info"}};
         for(int i=0;i<menuIcons.GetLength(0);i++)
             Find<MenuItem>(menuIcons[i,0]).Icon=GlyphImage(menuIcons[i,1]);
         Find<MenuItem>("AboutMenu").Click+=(s,e)=>ShowAbout();
-        search.TextChanged+=(s,e)=>{if(search.Text.Length>0)section="all";Render();};
+        search.TextChanged+=(s,e)=>{
+            if(clearingSearch)return;
+            if(section=="work"){RenderTaskItems();return;}
+            if(search.Text.Length>0)section="all";
+            Render();
+        };
+        var refresh=HeaderAction("Refresh","updates",()=>RefreshDisplayedTasks(true));
+        refresh.Tag="task-refresh";
+        refresh.Margin=new Thickness(9,0,0,0);
+        DockPanel.SetDock(refresh,Dock.Right);
+        var searchBar=Find<DockPanel>("SearchBar");
+        searchBar.Children.Insert(0,refresh);
+        taskPromptButton=TaskPromptAction();
+        DockPanel.SetDock(taskPromptButton,Dock.Right);
+        searchBar.Children.Insert(0,taskPromptButton);
         Configure();
         var actions=Find<StackPanel>("FullWindowActions");
         var compactToggle=WindowIconButton("Compact view","compact",()=>SetCompact(!Compact));
@@ -103,7 +119,7 @@ internal sealed partial class WpfDashboard
         sidebarSnapshot=sidebarStore.Read();layout=sidebarSnapshot.Layout;
         foreach(string id in entries.Select(entry=>entry.section).Where(SidebarStore.Custom).Distinct())
             if(!layout.items.Any(item=>item.id==id))layout.items.Add(new SidebarItem{id=id,label=SidebarStore.DefaultLabel(id)});
-        if(section!="work"&&section!="reports"&&!layout.items.Any(item=>item.id==section))section=layout.items.First(item=>SidebarStore.Known(item.id)).id;
+        if(!TasksWorkspace&&!VisibleDashboardSections().Any(item=>item.id==section))section=DashboardSection();
         RefreshNavigation();
         Render();
         RefreshVisibleWebsiteIcons();
@@ -128,7 +144,7 @@ internal sealed partial class WpfDashboard
         }
         var navigation=Find<StackPanel>("Navigation");
         navigation.Children.Clear();
-        foreach(var item in layout.items.Where(i=>SidebarStore.Known(i.id)))
+        foreach(var item in VisibleDashboardSections())
         {
             string id=item.id;
             var content=new DockPanel();
@@ -138,6 +154,7 @@ internal sealed partial class WpfDashboard
             content.Children.Add(new TextBlock{Text=SectionLabel(item.id,item.label),VerticalAlignment=VerticalAlignment.Center,TextTrimming=TextTrimming.CharacterEllipsis});
             var button=new Button{Content=content,Tag=id,HorizontalContentAlignment=HorizontalAlignment.Stretch,
                 Margin=new Thickness(0,0,0,6),Padding=new Thickness(10,0,10,0)};
+            NameControl(button,SectionLabel(item.id,item.label),"category-"+id);
             button.Click+=(s,e)=>Select(id);
             navigation.Children.Add(button);
         }
@@ -151,19 +168,25 @@ internal sealed partial class WpfDashboard
     }
 
     bool TasksWorkspace {get{return section=="work"||section=="reports";}}
+    System.Collections.Generic.IEnumerable<SidebarItem> VisibleDashboardSections()
+    {
+        return layout.items.Where(item=>SidebarStore.Known(item.id)&&(item.id!="all"||preferenceStore.Value.showAllLinks!=false));
+    }
+
     string DashboardSection()
     {
-        return layout.items.Any(item=>item.id==lastDashboardSection)?lastDashboardSection:layout.items.First(item=>SidebarStore.Known(item.id)).id;
+        var visible=VisibleDashboardSections();
+        return visible.Any(item=>item.id==lastDashboardSection)?lastDashboardSection:visible.Select(item=>item.id).FirstOrDefault()??"all";
     }
 
     void Select(string id)
     {
         if(Compact&&id!="work")SetCompact(false);
-        search.Clear();section=id!="work"&&id!="reports"&&!layout.items.Any(item=>item.id==id)?layout.items.First(item=>SidebarStore.Known(item.id)).id:id;
+        ClearSearch();section=id!="work"&&id!="reports"&&!VisibleDashboardSections().Any(item=>item.id==id)?DashboardSection():id;
         UpdateViewChrome();Render();
         RefreshVisibleWebsiteIcons();
-        if(section=="work"&&(assistantWorkView||personalTasksView)&&!agentUpdatesView)
-            RefreshWorkSource(personalTasksView,false);
+        if(section=="work"&&taskListView>=0)
+            RefreshWorkSource(taskListView,false);
     }
 
     void UpdateViewChrome()
@@ -182,11 +205,9 @@ internal sealed partial class WpfDashboard
             previous.Children.RemoveAt(0);
             destination.Children.Add(button);
         }
-        Find<DockPanel>("MainContent").Margin=Compact?new Thickness(22):new Thickness(30,24,30,20);
+        Find<DockPanel>("MainContent").Margin=Compact?new Thickness(22):new Thickness(30,24,6,20);
+        rows.Margin=new Thickness(0,0,Compact?14:7,0);
         heading.FontSize=Compact?24:29;
-        bool work=section=="work"||section=="reports";
-        Find<DockPanel>("SearchBar").Visibility=work?Visibility.Collapsed:Visibility.Visible;
-        search.Visibility=work?Visibility.Collapsed:Visibility.Visible;
         UpdateHeaderActions();
     }
 
@@ -211,7 +232,8 @@ internal sealed partial class WpfDashboard
         {
             SaveCompactBounds();compactSize=new Size(window.Width,window.Height);compactView=false;
             if(expandedSection!=null)
-                section=expandedSection=="work"||expandedSection=="reports"||layout.items.Any(item=>item.id==expandedSection)?expandedSection:DashboardSection();
+                section=expandedSection=="work"||expandedSection=="reports"||VisibleDashboardSections().Any(item=>item.id==expandedSection)?expandedSection:DashboardSection();
+            if(section!="work")ClearSearch();
             expandedSection=null;
             window.MinWidth=760;window.MinHeight=540;window.Width=fullBounds.Width;window.Height=fullBounds.Height;
             window.Left=fullBounds.Left;window.Top=fullBounds.Top;
@@ -232,18 +254,29 @@ internal sealed partial class WpfDashboard
     void Render()
     {
         rows.Children.Clear();
-        Find<StackPanel>("WorkNavigation").Visibility=section=="work"?Visibility.Visible:Visibility.Collapsed;
+        bool tasks=section=="work";
+        var workspaceButtons=Find<StackPanel>("WorkspaceNavigation");
+        if(workspaceButtons.Children.Count==2){
+            StyleWorkspaceButton((Button)workspaceButtons.Children[0],!TasksWorkspace);
+            StyleWorkspaceButton((Button)workspaceButtons.Children[1],TasksWorkspace);
+        }
+        if(!tasks)UpdateTaskPromptButton(null,null);
+        var searchBar=Find<DockPanel>("SearchBar");
+        searchBar.Visibility=section=="reports"?Visibility.Collapsed:Visibility.Visible;
+        searchBar.Children.OfType<Button>().Single(button=>Equals(button.Tag,"task-refresh")).Visibility=tasks?Visibility.Visible:Visibility.Collapsed;
+        System.Windows.Automation.AutomationProperties.SetName(search,tasks?"Search selected list":"Search all links");
+        Find<WrapPanel>("WorkNavigation").Visibility=tasks&&Compact?Visibility.Visible:Visibility.Collapsed;
+        Find<StackPanel>("TaskNavigation").Visibility=tasks&&!Compact?Visibility.Visible:Visibility.Collapsed;
+        if(!tasks){
+            Find<WrapPanel>("WorkNavigation").Children.Clear();
+            Find<StackPanel>("TaskNavigation").Children.Clear();
+        }
         string workspace=section=="software"?"software-folder":section=="website"?"websites-folder":null;
         Find<Button>("OpenFolder").Visibility=workspace!=null&&entries.Any(i=>i.id==workspace)?Visibility.Visible:Visibility.Collapsed;
         if(!TasksWorkspace)lastDashboardSection=section;
         var navigation=Find<StackPanel>("Navigation");
         navigation.Visibility=TasksWorkspace?Visibility.Collapsed:Visibility.Visible;
         navigation.IsEnabled=!TasksWorkspace;
-        var workspaceButtons=Find<StackPanel>("WorkspaceNavigation");
-        if(workspaceButtons.Children.Count==2)
-        {
-            SetNavigationSelected((Button)workspaceButtons.Children[1],TasksWorkspace);
-        }
         var buttons=navigation.Children.OfType<Button>();
         foreach(var nav in buttons.Where(b=>b.Tag is string))
         {
@@ -264,8 +297,6 @@ internal sealed partial class WpfDashboard
             (query.Length==0||(e.name+" "+e.description+" "+String.Join(" ",e.targets.Select(t=>t.path??t.url))).IndexOf(query,StringComparison.CurrentCultureIgnoreCase)>=0));
         foreach(var entry in OrderedDashboardEntries(candidates,layout,section))
         {
-            var row=new Border{Tag=entry.id,Padding=new Thickness(12,8,12,8),Margin=new Thickness(0,0,0,2),CornerRadius=new CornerRadius(6)};
-            row.SetResourceReference(Border.BackgroundProperty,"Surface");
             var content=new DockPanel();
             var targets=new StackPanel{Orientation=Orientation.Horizontal};
             DockPanel.SetDock(targets,Dock.Right);
@@ -294,8 +325,7 @@ internal sealed partial class WpfDashboard
                 content.Children.Add(artwork);
             }
             content.Children.Add(new TextBlock{Text=entry.name,VerticalAlignment=VerticalAlignment.Center,TextTrimming=TextTrimming.CharacterEllipsis});
-            row.Child=content;
-            rows.Children.Add(row);
+            rows.Children.Add(DashboardCard(content,entry.id));
         }
     }
 
@@ -360,7 +390,9 @@ internal sealed partial class WpfDashboard
     static int Main(string[] args)
     {
         AppInstanceGate applicationGate=null;
-        bool diagnostic=args.Any(a=>a=="--verify-closeout"||a=="--verify-icon-save"||a=="--verify-first-run"||a=="--verify-review-polish"||a=="--verify-task-lists"||a=="--verify-providers"||a=="--verify-review-links"||a=="--verify-sources"||a=="--verify-data"||a=="--verify-layout"||a=="--verify-icon-relaunch"||a=="--verify-fixture"||a=="--work-read"||a=="--work-apply");
+        bool desktopReview=(args.Length==3||args.Length==4&&args[3]=="--verify-icon-save")&&args[0]=="--fixture"&&args[2]=="--desktop-review";
+        bool verifyTaskFocus=args.Length==3&&args[0]=="--fixture"&&args[2]=="--verify-task-focus";
+        bool diagnostic=desktopReview||verifyTaskFocus||args.Any(a=>a=="--verify-closeout"||a=="--verify-icon-save"||a=="--verify-first-run"||a=="--verify-review-polish"||a=="--verify-task-lists"||a=="--verify-providers"||a=="--verify-review-links"||a=="--verify-sources"||a=="--verify-data"||a=="--verify-layout"||a=="--verify-icon-relaunch"||a=="--verify-fixture"||a=="--work-read"||a=="--work-apply");
         try
         {
             bool fixture=args.Length>=2&&(args[0]=="--fixture"||args[0]=="--verify-fixture");
@@ -411,7 +443,8 @@ internal sealed partial class WpfDashboard
             bool closeoutReview=fixture&&args.Length==1&&args[0]=="--verify-closeout";bool firstRunReview=fixture&&args.Length==1&&args[0]=="--verify-first-run";bool reviewPolish=fixture&&args.Length==1&&args[0]=="--verify-review-polish";
             bool layoutOnly=closeoutReview||firstRunReview||reviewPolish||(fixture&&args.Length==1&&args[0]=="--verify-layout");if(layoutOnly)args=new string[0];
             bool verifyIcon=args.Length==1&&args[0]=="--verify-icon-relaunch";if(verifyIcon)args=new string[0];
-            bool verifyIconSave=fixture&&args.Length==1&&args[0]=="--verify-icon-save";if(verifyIconSave)args=new string[0];
+            bool verifyIconSave=fixture&&(args.Length==1&&args[0]=="--verify-icon-save"||desktopReview&&args.Length==2);if(verifyIconSave)args=new string[0];
+            if(desktopReview||verifyTaskFocus)args=new string[0];
             bool currentWork=args.Length==1&&args[0]=="--current-work";
             if(args.Length>1||verify&&args.Length!=0)throw new ArgumentException("Unsupported dashboard command.");
             if(args.Length==1&&!currentWork&&args[0]!="--startup")
@@ -429,7 +462,7 @@ internal sealed partial class WpfDashboard
                     applicationGate.RequestActivation();
                     string running=AppInstanceGate.OtherRunningVersion();
                     if(running!=null&&running!=typeof(WpfDashboard).Assembly.GetName().Version.ToString(4))
-                        MessageBox.Show("Local Dashboard "+running+" is already running. Exit it before opening this version.","Local Dashboard",MessageBoxButton.OK,MessageBoxImage.Information);
+                        ShowStartupNotice("Local Dashboard "+running+" is already running. Use File > Exit in that app before opening this version.");
                     return 0;
                 }
                 string older=AppInstanceGate.OtherRunningVersion(true);
@@ -452,8 +485,9 @@ internal sealed partial class WpfDashboard
                     EventManager.RegisterClassHandler(typeof(Window),FrameworkElement.LoadedEvent,new RoutedEventHandler(ThemeWindow));
                     app.Resources.MergedDictionaries.Add(Load<ResourceDictionary>("ForgePresentation.xaml"));
                     bool firstSetup=!verify&&!layoutOnly&&!verifyIcon&&!verifyIconSave&&NeedsFirstSetup(profile);
-                    var dashboard=new WpfDashboard(profile,fixture,!diagnostic||verifyIconSave);
+                    var dashboard=new WpfDashboard(profile,fixture,!diagnostic||verifyIconSave||desktopReview,desktopReview);
                     if(layoutOnly){if(closeoutReview)dashboard.VerifyCloseout();else if(firstRunReview)dashboard.VerifyFirstRun();else if(reviewPolish)dashboard.VerifyReviewPolish();else dashboard.VerifyLayoutOnly();return 0;}
+                    if(verifyTaskFocus){dashboard.VerifyNativeTaskPromptFocus();return 0;}
                     if(verifyIcon){dashboard.window.ShowActivated=false;dashboard.window.ShowInTaskbar=false;dashboard.window.Left=-32000;dashboard.window.Top=-32000;dashboard.window.Show();dashboard.VerifyNativeIcon();dashboard.Exit();return 0;}
                     if(verify)
                     {
@@ -479,13 +513,13 @@ internal sealed partial class WpfDashboard
                     },null,Timeout.Infinite,false);
                     if(currentWork)dashboard.Select("work");
                     if(verifyIconSave){EventHandler rendered=null;rendered=(sender,eventArgs)=>{dashboard.window.ContentRendered-=rendered;dashboard.window.Dispatcher.BeginInvoke(new Action(dashboard.VerifyVisibleIconSave));};dashboard.window.ContentRendered+=rendered;}
-                    if(firstSetup){EventHandler setup=null;setup=(sender,eventArgs)=>{dashboard.window.ContentRendered-=setup;dashboard.window.Dispatcher.BeginInvoke(new Action(()=>dashboard.Protect(()=>dashboard.ShowSetup(true))));};dashboard.window.ContentRendered+=setup;}
+                    if(firstSetup){EventHandler setup=null;setup=(sender,eventArgs)=>{dashboard.window.ContentRendered-=setup;dashboard.window.Dispatcher.BeginInvoke(new Action(()=>{dashboard.window.Activate();dashboard.Protect(()=>dashboard.ShowSetup(true));}));};dashboard.window.ContentRendered+=setup;}
                     dashboard.refreshTimer.Start();
                     try
                     {
                         app.MainWindow=dashboard.window;
                         if(dashboard.preferenceStore.Value.startMinimized)dashboard.tray.Visible=true;
-                        else dashboard.window.Show();
+                        else {dashboard.window.Show();if(!verifyIconSave)dashboard.window.Activate();}
                         return app.Run();
                     }
                     finally{registration.Unregister(null);workRegistration.Unregister(null);if(appRegistration!=null)appRegistration.Unregister(null);}
@@ -495,7 +529,7 @@ internal sealed partial class WpfDashboard
         catch(Exception error)
         {
             if(diagnostic)Console.Error.WriteLine(error);
-            else MessageBox.Show(error.Message,"Local Dashboard",MessageBoxButton.OK,MessageBoxImage.Warning);
+            else ShowStartupNotice(error.Message);
             return 1;
         }
         finally{if(applicationGate!=null)applicationGate.Dispose();}

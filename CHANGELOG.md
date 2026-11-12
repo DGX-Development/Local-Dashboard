@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.2.5 - 2026-11-12
+
+- Manage up to three editable task lists and Checklists in a shared Tasks workspace. Search within the selected list and use the sidebar Edit action to manage lists and items.
+- Use the guided setup to restore a backup or choose task sources. Optional copyable agent prompts are available for setup and task editing.
+- Apply consistent dropdown, checkbox, confirmation and editor styles. Custom color scrolls its controls into view, and search hints clear when the field receives focus.
+- Use Dashboard and Tasks from the notification-area menu. The app retains separate window and compact-view preferences.
+
 ## 2.2.4 - 2026-11-10
 
 - Configuration backups now include readable custom icon images picked outside the Dashboard folder. Restore reconnects included images in a fresh profile.

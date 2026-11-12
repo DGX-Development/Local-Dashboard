@@ -22,6 +22,7 @@ internal sealed class ShellTaskbarBrand {
     [DllImport("shell32.dll",PreserveSig=true)] static extern int SHGetPropertyStoreForWindow(IntPtr window,ref Guid iid,[MarshalAs(UnmanagedType.Interface)]out IPropertyStore store);
     [DllImport("ole32.dll")] static extern int PropVariantClear(ref PropVariant value);
     readonly string profile,command,displayName,executable,arguments;
+    readonly bool review;
     string relaunchCommand;
     internal readonly string AppId;
     internal string IconResource {get;private set;}
@@ -32,9 +33,10 @@ internal sealed class ShellTaskbarBrand {
     static string Identity(string profile,bool review){using(var sha=SHA256.Create())return "DGX.LocalDashboard."+(review?"Review.":"App.")+BitConverter.ToString(sha.ComputeHash(Encoding.UTF8.GetBytes(Path.GetFullPath(profile).ToUpperInvariant()))).Replace("-","").Substring(0,24);}
     internal static void InitializeProcess(string profile,bool review){Marshal.ThrowExceptionForHR(SetCurrentProcessExplicitAppUserModelID(Identity(profile,review)));}
     internal static string ProcessIdentity(){IntPtr text;Marshal.ThrowExceptionForHR(GetCurrentProcessExplicitAppUserModelID(out text));try{return Marshal.PtrToStringUni(text);}finally{Marshal.FreeCoTaskMem(text);}}
-    internal ShellTaskbarBrand(string profile,bool review,string executable){
+    internal ShellTaskbarBrand(string profile,bool review,string executable,bool desktopReview){
         this.profile=profile;displayName="Local Dashboard";
-        this.executable=executable;arguments=review?"--fixture \""+profile+"\"":"";
+        this.review=review;
+        this.executable=executable;arguments=review?"--fixture \""+profile+"\""+(desktopReview?" --desktop-review":""):"";
         AppId=Identity(profile,review);
         command="\""+executable+"\""+(arguments.Length==0?"":" "+arguments);
     }
@@ -98,7 +100,7 @@ internal sealed class ShellTaskbarBrand {
         if(handle==IntPtr.Zero||IconResource==null)return;
         Apply(handle);RefreshShortcuts();
     }
-    internal void RefreshShortcuts(){if(IconResource!=null)TaskbarShortcutIcons.Refresh(executable,arguments,AppId,IconResource.Substring(0,IconResource.Length-2));}
+    internal void RefreshShortcuts(){if(IconResource!=null)TaskbarShortcutIcons.Refresh(executable,arguments,AppId,IconResource.Substring(0,IconResource.Length-2),review);}
     internal string Read(IntPtr handle,uint id){var store=Open(handle);try{var key=new PropertyKey(id);PropVariant value;Marshal.ThrowExceptionForHR(store.GetValue(ref key,out value));try{return value.StringValue;}finally{PropVariantClear(ref value);}}finally{Marshal.ReleaseComObject(store);}}
     internal void Dispose(){if(nativeSmall!=null)nativeSmall.Dispose();if(nativeLarge!=null)nativeLarge.Dispose();nativeSmall=nativeLarge=null;nativeKey=null;}
     internal void Clear(IntPtr handle){if(handle==IntPtr.Zero)return;var store=Open(handle);try{foreach(uint id in new uint[]{5,3,4,2})Set(store,id,null);}finally{Marshal.ReleaseComObject(store);}}

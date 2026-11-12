@@ -1,0 +1,29 @@
+Local Dashboard | Start Here
+
+Use this guide when helping someone set up, restore, or maintain Local Dashboard on Windows.
+
+1. Confirm the request and the copy of Dashboard
+Identify whether the request is for a fresh setup, a restore, or a small change. For a small change, inspect the relevant settings first and ask only for missing information needed for that change.
+Confirm the exact LocalDashboard.exe path, version, and active data folder or profile. If there are multiple copies, check the intended shortcut's target and arguments. In an open copy, check Help > About and the data folder shown in Settings where available. Menu labels and supported features can vary by version.
+Before writing, check that the relevant files and folders are readable and that destinations are writable. Check sync folders for online-only files and network paths for access on this PC. Ask the user to make a file available locally, restore access, or confirm the correct path when needed. If you have no desktop access, ask the user what screen they see and give exact clicks, paths, and any requested paste-ready text. Have them report what the app shows.
+
+2. Use the matching workflow
+Fresh setup: Use the welcome screen. Use Help > Run setup again only when the user requests fresh setup and needs the walkthrough reopened. Ask which folders, documents, and websites to add, how to group them, which task lists to connect or create, and whether to use Checklists. Choose Next to add an optional first link with its name, category, type, and full path or URL. Review the plan before Finish. Use Dashboard > Edit for additional links and categories.
+Restore: Identify the exact backup and destination profile. Use Restore from a backup on the welcome screen or File > Restore configuration. Review the displayed choices with the user before confirming and keep a recoverable backup of the current configuration. A full restore replaces Dashboard settings, links, favorites, and layout. Included task files are extracted as separate copies. Review whether each list will keep its current selection or use a restored copy, including any defaults chosen because a current file is unavailable. A missing backup copy keeps the current selection in current builds. Linked project files need their own backups. If the app offers Import links for a standalone catalog.json, that option replaces only the Dashboard links. Verify the behavior shown by the installed version before proceeding.
+Small change: Use the relevant editor, such as Dashboard > Edit for links or Settings > Tasks for list sources and names. Use Tasks > Edit below the sidebar lists for task and checklist editing. Review the intended change and use Save for staged changes. Main-view checklist checkoffs can save immediately.
+
+3. Confirm task sources before changing them
+For each affected list, confirm its display name, position, visibility, and exact working file path. On current builds, lists follow slot order. Connecting or disconnecting a source can show or hide an extra list. Use Choose source > Choose existing file for a TXT or Markdown file, or Create task file for a blank one. Checklists uses a separate Dashboard JSON file and can use its default location. After a restore, compare every configured list path to the intended working path, especially when the restored copy also opens successfully.
+Linking an existing file authorizes selecting the source. Editing its contents requires a separate request. When editing is requested, follow the applicable folder and task-format instructions and preserve unrelated tasks, notes, and ordering. A new text list can start like this:
+
+1. Review the project plan
+   Check the dates and owners.
+
+   Notes:
+   Compare with last week's version.
+
+The numbered line is the title, the next paragraph is the brief description, and Notes appears under Details.
+
+4. Protect open work and verify the result
+Check for unsaved changes before restoring, switching sources, or writing a file. Ask the user how to handle open drafts. If the file is locked, changed on disk, or has a sync conflict, preserve the draft and current file, then resolve the conflict with the user before saving. After an outside edit, use Refresh beside Search and check for an out-of-date warning.
+Verify local link and shortcut targets on disk and check website addresses without invoking Dashboard links. Open a program or document through Dashboard only when the user has authorized that specific check and it is safe. In the Dashboard interface, verify saved links and list names, order, visibility, exact paths, and refreshed contents as applicable. Report which checks were done on disk, which were observed in Dashboard, and which still need the user to confirm.

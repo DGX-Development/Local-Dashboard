@@ -116,7 +116,7 @@ internal static partial class DashboardData {
         return bundle;
     }
     static Dictionary<string,byte[]> Decode(DashboardBackup bundle){
-        if(bundle==null||bundle.product!="Local Dashboard"||(bundle.schemaVersion!=1&&bundle.schemaVersion!=2&&bundle.schemaVersion!=3&&bundle.schemaVersion!=4&&bundle.schemaVersion!=5)||bundle.files==null||bundle.hashes==null)throw new IOException("Unsupported Dashboard backup.");
+        if(bundle==null||bundle.product!="Local Dashboard"||(bundle.schemaVersion!=1&&bundle.schemaVersion!=2&&bundle.schemaVersion!=3&&bundle.schemaVersion!=4&&bundle.schemaVersion!=5&&bundle.schemaVersion!=6)||bundle.files==null||bundle.hashes==null)throw new IOException("Unsupported Dashboard backup.");
         string[] expected=bundle.schemaVersion==1?Names.Where(n=>n!=".local/work-list-source.json").ToArray():bundle.schemaVersion>=4?Names.Concat(new[]{".local/personal-tasks-source.json"}).ToArray():Names;
         if(bundle.files.Count!=expected.Length||bundle.hashes.Count!=expected.Length||expected.Any(n=>!bundle.files.ContainsKey(n)||!bundle.hashes.ContainsKey(n)))throw new IOException("Unsupported Dashboard backup.");
         var result=new Dictionary<string,byte[]>();
@@ -138,7 +138,7 @@ internal static partial class DashboardData {
             if(files[".local/window-preferences.json"]!=null){
                 var raw=AppData.Json.DeserializeObject(Text(files[".local/window-preferences.json"])) as Dictionary<string,object>;
                 if(raw==null)throw new IOException("Invalid preferences.");if(raw.ContainsKey("theme")&&(!(raw["theme"] is string)||!DashboardTheme.Valid((string)raw["theme"])))throw new IOException("Invalid theme preference.");
-                foreach(string key in new[]{"closeToTray","minimizeToTray","startWithWindows","startMinimized"})if(raw.ContainsKey(key)&&!(raw[key] is bool))throw new IOException("Invalid window preference.");
+                foreach(string key in new[]{"closeToTray","minimizeToTray","startWithWindows","startMinimized","showAllLinks"})if(raw.ContainsKey(key)&&!(raw[key] is bool))throw new IOException("Invalid window preference.");
                 System.Drawing.Color color;if(raw.ContainsKey("accentColor")&&raw["accentColor"]!=null&&!DashboardAccent.TryParse(raw["accentColor"] as string,out color))throw new IOException("Invalid accent color.");
             }
             if(files[".local/agent-work.txt"]!=null){if(files[".local/agent-work.txt"].Length>1048576)throw new IOException("Agent Work is too large.");Text(files[".local/agent-work.txt"]);}

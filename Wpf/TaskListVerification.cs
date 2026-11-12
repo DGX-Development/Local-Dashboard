@@ -49,11 +49,11 @@ internal static class TaskListVerification {
         string checklistHash=ChecklistLocation.Token(checklist),agentHash=ChecklistLocation.Token(agent),personalHash=ChecklistLocation.Token(personal);
         var reopened=new ChecklistStore(checklist,entries).Read();Check(reopened.items.Single().state=="done"&&reopened.items.Single().details=="Existing detail","checklist entries, notes and Done state persist on reopening");
         var backup=DashboardData.ExportWithLists(area,Path.Combine(profile,"three-lists-backup.json"));
-        Check(backup.schemaVersion==5&&backup.lists.Count==3&&backup.lists.Values.All(x=>x.status=="included"),"backup includes all three selected lists");
+        Check(backup.schemaVersion==6&&new[]{"agent","personal","checklist"}.All(role=>backup.lists[role].status=="included"),"backup includes all three selected lists");
         Reject(()=>DashboardData.ExportWithLists(area,personal),"backup cannot overwrite the Personal tasks source");
         var restored=DashboardData.RestoreCopies(area,backup,false);
         Check(ChecklistLocation.Token(restored.Personal)==personalHash&&WorkSources.Read(area,true).path==personal,"restore creates a byte-exact personal copy and keeps current selection by default");
-        var older=AppData.Json.Deserialize<DashboardBackup>(AppData.Json.Serialize(backup));older.schemaVersion=3;older.lists.Remove("personal");older.files.Remove(".local/personal-tasks-source.json");older.hashes.Remove(".local/personal-tasks-source.json");
+        var older=AppData.Json.Deserialize<DashboardBackup>(AppData.Json.Serialize(backup));older.schemaVersion=3;older.lists.Remove("personal");older.lists.Remove("third");older.files.Remove(".local/personal-tasks-source.json");older.hashes.Remove(".local/personal-tasks-source.json");
         DashboardData.RestoreCopies(area,older,true);Check(WorkSources.Read(area,true).path==personal,"older two-list backups preserve Personal tasks selection");
         restored=DashboardData.RestoreCopies(area,backup,true);Check(WorkSources.Read(area,true).path==restored.Personal&&WorkSources.Read(area).path==restored.Agent&&ChecklistLocation.PathFor(area)==restored.Checklist,"explicit restored-copy selection covers all three lists");
         Check(ChecklistLocation.Token(checklist)==checklistHash&&ChecklistLocation.Token(agent)==agentHash&&ChecklistLocation.Token(personal)==personalHash,"all original task and checklist bytes survive backup and restore");
@@ -72,7 +72,7 @@ internal static class TaskListVerification {
         changed=draft.Apply(draft.Title,"New short description.","New notes.\nUnknown: retain me.",null);
         Check(changed.Contains("   Status: Waiting.\r\n   Next: Review.")&&changed.EndsWith("2. Second title\r\n   Do not change this.\r\n")&&changed.Contains("   Notes:\r\n   New notes.\r\n   Unknown: retain me."),"description and notes edits preserve optional fields and neighboring tasks");
         string saved=PersonalTextStore.Save(area,snapshot,changed);byte[] bytes=File.ReadAllBytes(file);
-        Check(saved=="Personal tasks saved."&&bytes.Take(3).SequenceEqual(new byte[]{239,187,191})&&!File.Exists(PersonalTextStore.RecoveryPath(area)),"personal save keeps UTF-8 BOM and completes its recovery record");
+        Check(saved=="Task list 2 saved."&&bytes.Take(3).SequenceEqual(new byte[]{239,187,191})&&!File.Exists(PersonalTextStore.RecoveryPath(area)),"personal save keeps UTF-8 BOM and completes its recovery record");
         Check(File.ReadAllText(file).Contains("Updated: "+DateTime.UtcNow.ToString("MMMM",System.Globalization.CultureInfo.InvariantCulture))&&WorkSources.Cached(area,WorkSources.Read(area,true)).text==File.ReadAllText(file),"saved timestamp and displayed cache follow the saved original");
         Reject(()=>PersonalTextStore.Save(area,snapshot,"Stale edit"),"stale document save preserves the newer file");
         snapshot=PersonalTextStore.Open(area);string current=File.ReadAllText(file);string hash=ChecklistLocation.Token(file);
@@ -95,7 +95,12 @@ internal static class TaskListVerification {
         string unusual="1. Legacy task\n   Brief.\n   Unknown field: keep this\n   Status: First\n   Status: Second\n";draft=new PersonalTaskDraft(unusual,ReadableTasks.Parse(unusual).Blocks.First());
         Check(!draft.Simple&&draft.Apply("New title",null,null,draft.Body)==unusual.Replace("Legacy task","New title"),"ambiguous task uses lossless text editor");
         string added=PersonalTaskDraft.Add(text,"Added task","New description","More notes");
-        Check(added.Contains("3. Added task")&&added.Contains(text.Substring(block.Start))&&added.IndexOf("3. Added task")<added.IndexOf("1. First title"),"new task inserts above first task without renumbering existing tasks");
+        Check(added.Contains("3. Added task")&&added.Contains(text.Substring(block.Start))&&added.IndexOf("3. Added task")>added.IndexOf("2. Second title"),"new task appends without renumbering existing tasks");
+        string ordered="## Sample\r\n1. First\r\n   Keep first notes.\r\n\r\n2. Second";
+        Check(PersonalTaskDraft.Move(ordered,1,0)=="## Sample\r\n2. Second\r\n\r\n1. First\r\n   Keep first notes.",
+            "task reorder keeps identifiers, notes, separators, and a missing final newline");
+        Reject(()=>PersonalTaskDraft.Move("## First\n1. First\n\n## Second\n2. Second",0,1),
+            "task reorder protects heading context");
         string empty="1. Bare title";draft=new PersonalTaskDraft(empty,ReadableTasks.Parse(empty).Blocks.First());var filled=ReadableTasks.Parse(draft.Apply(draft.Title,"New summary","New notes",null)).Blocks.Single();
         Check(filled.Summary=="New summary"&&filled.Details.Contains("New notes"),"bare task gains summary before longer notes");
         string plain="Loose text\n- No required fields\nUnfamiliar: preserved\n";File.WriteAllText(file,plain,new UTF8Encoding(false));snapshot=PersonalTextStore.Open(area);PersonalTextStore.Save(area,snapshot,plain+"One more line\n");
@@ -115,13 +120,19 @@ internal sealed partial class WpfDashboard {
                 WorkSources.Save(profile,choice,WorkSources.Token(profile,personal),personal);
                 WorkSources.Store(profile,choice,WorkSources.Token(profile,personal),WorkSources.Fetch(choice),personal);
             }
-            agentUpdatesView=false;
             for(int i=0;i<3;i++){
-                assistantWorkView=i==0;personalTasksView=i==1;Select("work");RenderCompact(true);
+                taskListView=i==2?-1:i;Select("work");RenderCompact(true);
                 CaptureShell(profile,"review-tasks-"+i+".png",1120,820);
-                if(heading.Text!="Tasks")throw new Exception("Tasks heading changed with selection.");
-                var tabs=Find<StackPanel>("WorkNavigation").Children.OfType<WrapPanel>().Single().Children.OfType<Button>().ToArray();
-                if(!tabs.Select(b=>(string)b.Content).SequenceEqual(new[]{"Agent tasks","Personal tasks","Checklists"}))throw new Exception("Task labels or order differ.");
+                var labels=new[]{"Task list 1","Task list 2","Checklists"};
+                if(heading.Text!=labels[i])throw new Exception("Heading does not match the selected task list.");
+                var tabs=TaskNavigationPanel().Children.OfType<Button>().ToArray();
+                if(!tabs.Select(System.Windows.Automation.AutomationProperties.GetName).SequenceEqual(labels))throw new Exception("Task labels or order differ.");
+                var workspaceButton=(Button)Find<StackPanel>("WorkspaceNavigation").Children[1];
+                if(((Border)workspaceButton.Template.FindName("NavigationMarker",workspaceButton)).Visibility!=Visibility.Collapsed)
+                    throw new Exception("Tasks highlights both the workspace and its selected list.");
+                if(System.Windows.Automation.AutomationProperties.GetItemStatus(workspaceButton)!="Current workspace"||
+                    ((TextBlock)((DockPanel)workspaceButton.Content).Children[1]).FontWeight!=FontWeights.SemiBold)
+                    throw new Exception("The active workspace is not distinguishable from the other workspace.");
                 for(int n=0;n<3;n++){
                     var marker=(Border)tabs[n].Template.FindName("NavigationMarker",tabs[n]);
                     if(marker.Visibility!=(i==n?Visibility.Visible:Visibility.Collapsed))throw new Exception("Task selection marker differs.");
@@ -130,6 +141,10 @@ internal sealed partial class WpfDashboard {
                 }
                 if(Visuals<Expander>(rows).Any(e=>e.IsExpanded))throw new Exception("Details opened by default.");
             }
+            VerifyAgentEditPrompt();
+            VerifyTaskNavigationModes();
+            VerifyChecklistEmptyStates();
+            VerifyTaskWorkspaceEditor();
             presentDialog=dialog=>{
                 var root=dialog.Content as DependencyObject;
                 Capture(dialog.Content as UIElement,Path.Combine(profile,"review-"+SafeName(dialog.Title)+".png"),(int)dialog.Width-16,(int)dialog.Height-39);
@@ -142,7 +157,7 @@ internal sealed partial class WpfDashboard {
                 if(dialog.Title=="About Local Dashboard"){
                     var mark=Visuals<Image>(root).Single(i=>Equals(i.Tag,"publisher"));
                     if(mark.Width!=140)throw new Exception("Publisher mark size differs.");
-                    if(!Visuals<TextBlock>(root).Any(t=>t.Text=="Version 2.2.1")||Visuals<TextBlock>(root).Any(t=>t.Text.Contains("Development build")))throw new Exception("Release About wording differs.");
+                    if(!Visuals<TextBlock>(root).Any(t=>t.Text=="Version "+typeof(WpfDashboard).Assembly.GetName().Version.ToString())||Visuals<TextBlock>(root).Any(t=>t.Text.Contains("Development build")))throw new Exception("Release About wording differs.");
                 }
                 if(dialog.Title=="Local Dashboard settings"){
                     foreach(var page in new[]{"Tasks","Appearance"}){
@@ -164,7 +179,7 @@ internal sealed partial class WpfDashboard {
                 var picker=Visuals<ListBox>(root).Single(t=>System.Windows.Automation.AutomationProperties.GetName(t)=="Section");var items=Visuals<ListBox>(root).Single(l=>System.Windows.Automation.AutomationProperties.GetName(l)=="Dashboard entries");
                 var name=Visuals<TextBox>(root).Single(t=>System.Windows.Automation.AutomationProperties.GetName(t)=="Name");
                 if(picker.SelectedItem==null||items.SelectedItem==null||String.IsNullOrWhiteSpace(name.Text))throw new Exception("Editor initial selection is blank.");
-                picker.SelectedValue="workflows";Capture(dialog.Content as UIElement,Path.Combine(profile,"release-edit-empty.png"),844,581);
+                ClickIn(root,"Add category");Capture(dialog.Content as UIElement,Path.Combine(profile,"release-edit-empty.png"),844,581);
                 if(items.Items.Count==0&&(!Visuals<TextBlock>(root).Any(t=>t.Visibility==Visibility.Visible&&t.Text.StartsWith("No links in this category"))||name.IsEnabled))throw new Exception("Editor empty state is missing.");
                 dialog.Close();return false;
             };
@@ -206,11 +221,11 @@ internal sealed partial class WpfDashboard {
         string checklistHash=ChecklistLocation.Token(ChecklistLocation.PathFor(profile));
         File.WriteAllText(file,text);WorkSources.Save(profile,new WorkSourceChoice{schemaVersion=1,kind="local",path=file},WorkSources.Token(profile,true),true);
         WorkSources.Store(profile,WorkSources.Read(profile,true),WorkSources.Token(profile,true),WorkSources.Fetch(WorkSources.Read(profile,true)),true);
-        personalTasksView=true;assistantWorkView=false;agentUpdatesView=false;Select("work");
+        taskListView=1;Select("work");
         Func<Window,string,TextBox> field=(dialog,name)=>{var root=(UIElement)dialog.Content;root.Measure(new Size(684,671));root.Arrange(new Rect(0,0,684,671));root.UpdateLayout();return Visuals<TextBox>(root).Single(t=>System.Windows.Automation.AutomationProperties.GetName(t)==name);};
         Action<Window,string> click=(dialog,name)=>ClickIn(dialog.Content as DependencyObject,name);
         try{
-            if(heading.Text!="Tasks"||Find<WrapPanel>("CompactToolbar").Children.OfType<Button>().Any(b=>Equals(b.Tag,"work-settings")))throw new Exception("Personal heading or toolbar Settings removal failed.");
+            if(heading.Text!=TaskListLabel(1)||Find<WrapPanel>("CompactToolbar").Children.OfType<Button>().Any(b=>Equals(b.Tag,"work-settings")))throw new Exception("Personal heading or toolbar Settings removal failed.");
             CaptureShell(profile,"editor-personal-tasks.png",1120,820);
             presentDialog=dialog=>{
                 Capture(dialog.Content as UIElement,Path.Combine(profile,"editor-personal-form.png"),684,671);AuditControlSizes(dialog.Content as DependencyObject);
@@ -233,32 +248,234 @@ internal sealed partial class WpfDashboard {
             if(!File.ReadAllText(file).Contains("3. Plan the weekend"))throw new Exception("Add personal task failed.");
             presentDialog=dialog=>{var doc=field(dialog,"Document text");doc.Text+="\nA plain note with no fields.\n";click(dialog,"Save");return true;};EditPersonalTask(null,null,true);
             if(!File.ReadAllText(file).Contains("A plain note with no fields."))throw new Exception("Full document editing failed.");
-            personalTasksView=false;assistantWorkView=true;RenderCompact(true);if(heading.Text!="Tasks"||Visuals<Button>(rows).Any(b=>Equals(b.Tag,"personal-edit")))throw new Exception("Agent tasks must remain read-only.");
-            assistantWorkView=false;RenderCompact(true);if(heading.Text!="Tasks"||ChecklistLocation.Token(ChecklistLocation.PathFor(profile))!=checklistHash)throw new Exception("Checklists label or data preservation failed.");
+            taskListView=0;RenderCompact(true);if(heading.Text!=TaskListLabel(0)||Visuals<Button>(rows).Any(b=>Equals(b.Content,"Add task")||Equals(b.Content,"Edit document")||Equals(b.Content,"Edit")))throw new Exception("Task browsing exposes editing controls.");
+            taskListView=-1;RenderCompact(true);if(heading.Text!=TaskLabel(false)||ChecklistLocation.Token(ChecklistLocation.PathFor(profile))!=checklistHash)throw new Exception("Checklists label or data preservation failed.");
             SetCompact(true);if(Find<WrapPanel>("CompactToolbar").Children.OfType<Button>().Any(b=>Equals(b.Tag,"work-settings")))throw new Exception("Compact toolbar retained Settings.");SetCompact(false);
             if(!Visuals<Button>(Find<StackPanel>("SidebarFooter")).Any(b=>System.Windows.Automation.AutomationProperties.GetName(b)=="Settings")||Find<MenuItem>("SettingsMenu")==null)throw new Exception("Permanent Settings routes were lost.");
             if(new System.Windows.Interop.WindowInteropHelper(window).Handle!=IntPtr.Zero)throw new Exception("Editor tests created a native window.");
-            Console.WriteLine("Personal editor UI passed: matched headings, Save/Cancel/Add/text editing, retained conflict draft, read-only Agent tasks, unchanged checklist, toolbar removal and remaining Settings routes. No native window created.");
-        }finally{presentDialog=presenter;personalTasksView=false;assistantWorkView=true;Select("software");}
+            Console.WriteLine("Personal editor UI passed: matched headings, Save/Cancel/Add/text editing, retained conflict draft, editable task lists, unchanged checklist, toolbar removal and remaining Settings routes. No native window created.");
+        }finally{presentDialog=presenter;taskListView=0;Select("software");}
+    }
+    void VerifyTaskWorkspaceEditor(){
+        var presenter=presentDialog;
+        var source=WorkSources.Read(profile,0).path;
+        var original=File.ReadAllText(source);
+        var checklist=new ChecklistStore(ChecklistLocation.PathFor(profile),entries);
+        var done=checklist.Upsert(new WorkPatch{expectedRevision=checklist.Read().revision,id="workspace-done",title="Completed fixture"});
+        checklist.Complete(done.revision,"workspace-done",true);
+        Func<DependencyObject,string,ListBox> list=(root,name)=>Visuals<ListBox>(root)
+            .Single(control=>System.Windows.Automation.AutomationProperties.GetName(control)==name);
+        Action<DependencyObject,string> addItem=(root,name)=>{
+            var editor=presentDialog;
+            try{
+                presentDialog=item=>{
+                    var fields=(UIElement)item.Content;
+                    fields.Measure(new Size(624,431));fields.Arrange(new Rect(0,0,624,431));fields.UpdateLayout();
+                    Visuals<TextBox>(fields).Single(control=>System.Windows.Automation.AutomationProperties.GetName(control)=="Title").Text=name;
+                    ClickIn(fields,"Done");item.Close();return true;
+                };
+                ClickIn(root,"Add item");
+            }finally{presentDialog=editor;}
+        };
+        try{
+            foreach(string action in new[]{"Cancel","Save","Conflict"}){
+                taskListView=0;Select("work");
+                presentDialog=dialog=>{
+                    var root=(UIElement)dialog.Content;
+                    Capture(root,Path.Combine(profile,"edit-tasks-"+action+".png"),1120,780);
+                    var sections=list(root,"Task lists");
+                    if(sections.Items.Count!=4||list(root,"List items").Items.Count==0)
+                        throw new Exception("Edit Tasks does not show both lists and their items.");
+                    var itemRow=(ListBoxItem)list(root,"List items").ItemContainerGenerator.ContainerFromIndex(0);
+                    var sectionRow=(ListBoxItem)sections.ItemContainerGenerator.ContainerFromIndex(0);
+                    if(itemRow.ActualHeight!=sectionRow.ActualHeight||itemRow.VerticalContentAlignment!=VerticalAlignment.Center)
+                        throw new Exception("Editor rows do not have matching heights and centered labels.");
+                    addItem(root,"Staged task "+action);
+                    sections.SelectedItem=sections.Items.Cast<TaskSectionDraft>().Single(draft=>draft.Id<0);
+                    addItem(root,"Staged checklist "+action);
+                    if(action=="Save"){
+                        System.Windows.Input.ComponentCommands.MoveUp.Execute(null,sections);
+                        System.Windows.Input.ComponentCommands.MoveUp.Execute(null,sections);
+                        var name=Visuals<TextBox>(root).Single(control=>System.Windows.Automation.AutomationProperties.GetName(control)=="List name");
+                        name.Text="My checklists";
+                    }
+                    if(action=="Conflict")File.AppendAllText(source,"\r\nOutside edit\r\n");
+                    ClickIn(root,action=="Cancel"?"Cancel":"Save");
+                    if(action=="Conflict"&&!Visuals<TextBlock>(root).Any(block=>block.Text.Contains("changed outside Dashboard")))
+                        throw new Exception("External file conflict did not keep the draft open.");
+                    dialog.Close();return action=="Save";
+                };
+                EditTaskWorkspace();
+                if(File.ReadAllText(source).Contains("Staged task "+action)!=(action=="Save")||
+                    checklist.Read().items.Any(item=>item.title=="Staged checklist "+action)!=(action=="Save"))
+                    throw new Exception("Edit Tasks did not respect Save, Cancel, or external conflict.");
+            }
+            if(!File.ReadAllText(source).Contains("Outside edit")||!checklist.Read().items.Any(item=>item.id=="workspace-done"&&item.state=="done")||
+                TaskLabel(false)!="My checklists"||VisibleTaskTabs().Last()==-1)
+                throw new Exception("Edit Tasks did not preserve the outside edit, completion, or list changes.");
+            Console.WriteLine("Edit Tasks passed: staged task and checklist changes, Cancel, Save, order, rename, preserved checkoffs, and external-write conflict.");
+        }finally{presentDialog=presenter;taskListView=0;}
+    }
+    void VerifyChecklistEmptyStates(){
+        var store=new ChecklistStore(ChecklistLocation.PathFor(profile),entries);
+        taskListView=-1;doneView=false;Select("work");
+        if(!Visuals<TextBlock>(rows).Any(block=>block.Text=="Use Edit to add your first checklist item."))
+            throw new Exception("A new checklist has the wrong empty state.");
+        var draft=store.Upsert(new WorkPatch{expectedRevision=store.Read().revision,id="checklist-empty-test",title="A completed item"});
+        store.Complete(draft.revision,"checklist-empty-test",true);
+        RenderTaskItems();
+        if(!Visuals<TextBlock>(rows).Any(block=>block.Text=="No current checklist items. Completed items are under Done."))
+            throw new Exception("A fully completed checklist is presented as new.");
+        doneView=true;RenderTaskItems();
+        if(!Visuals<CheckBox>(rows).Any(item=>item.IsChecked==true))
+            throw new Exception("Completed checklist items disappeared.");
+        search.Text="fixture unmatched query";
+        if(!Visuals<TextBlock>(rows).Any(block=>block.Text=="No checklist items match your search."))
+            throw new Exception("Checklist search uses the wrong empty state.");
+        ClearSearch();doneView=false;Select("software");
+        Console.WriteLine("Checklist empty states distinguish new, fully completed, and no search matches.");
+    }
+
+    void VerifyTaskNavigationModes(){
+        Select("work");
+        var full=Find<StackPanel>("TaskNavigation");
+        var compact=Find<WrapPanel>("WorkNavigation");
+        for(int pass=0;pass<3;pass++){
+            SetCompact(true);
+            if(full.Children.Count!=0||compact.Children.OfType<Button>().Count()!=VisibleTaskTabs().Length)
+                throw new Exception("Compact retains full-size navigation controls.");
+            SetCompact(false);
+            if(compact.Children.Count!=0||full.Children.OfType<Button>().Count()!=VisibleTaskTabs().Length)
+                throw new Exception("Full view retains Compact navigation controls.");
+        }
+        Select("software");
+        if(full.Children.Count!=0||compact.Children.Count!=0)
+            throw new Exception("Dashboard retains inactive Tasks navigation controls.");
+        Console.WriteLine("Full and Compact each expose only their own Tasks navigation, across repeated transitions.");
+    }
+
+    void VerifyNativeTaskPromptFocus(){
+        var original=presentDialog;
+        try{
+            window.Show();window.Activate();
+            foreach(bool topmost in new[]{false,true}){
+                int list=topmost?-1:0;
+                window.Topmost=topmost;
+                taskListView=list;Select("work");
+                var trigger=taskPromptButton;
+                if(!trigger.IsVisible)throw new Exception("Agent prompt action is unavailable.");
+                Exception failure=null;
+                presentDialog=dialog=>{
+                    var deadline=DateTime.UtcNow.AddSeconds(4);
+                    var timer=new System.Windows.Threading.DispatcherTimer(System.Windows.Threading.DispatcherPriority.ApplicationIdle){
+                        Interval=TimeSpan.FromMilliseconds(40)
+                    };
+                    timer.Tick+=(s,e)=>{
+                        var focused=System.Windows.Input.Keyboard.FocusedElement as Button;
+                        if((!dialog.IsActive||focused==null||!Equals(focused.Content,"Copy prompt"))&&DateTime.UtcNow<deadline)return;
+                        timer.Stop();
+                        try{
+                            if(!dialog.IsActive||focused==null||!Equals(focused.Content,"Copy prompt")||
+                                dialog.Owner!=window||dialog.Topmost!=topmost||!focused.IsDefault)
+                                throw new Exception("The active native prompt did not focus its Copy button.");
+                            if(list>=0){
+                                RenderTaskRead(list);
+                                if(!taskPromptNeedsRefresh||taskPromptButton!=trigger)
+                                    throw new Exception("A background read replaced the prompt action while the dialog was open.");
+                            }
+                            var next=new System.Windows.Input.TraversalRequest(System.Windows.Input.FocusNavigationDirection.Next);
+                            focused.MoveFocus(next);
+                            var close=System.Windows.Input.Keyboard.FocusedElement as Button;
+                            if(close==null||!Equals(close.Content,"Close"))throw new Exception("Prompt tab order did not reach Close.");
+                            close.MoveFocus(next);
+                            if(System.Windows.Input.Keyboard.FocusedElement!=focused)throw new Exception("Prompt tab order escaped the modal.");
+                        }catch(Exception error){failure=error;}
+                        finally{dialog.Close();}
+                    };
+                    timer.Start();
+                    try{return ShowOwnedDialog(dialog);}finally{timer.Stop();}
+                };
+                trigger.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                if(failure!=null)throw failure;
+                var frame=new System.Windows.Threading.DispatcherFrame();
+                window.Dispatcher.BeginInvoke(new Action(()=>frame.Continue=false),System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                System.Windows.Threading.Dispatcher.PushFrame(frame);
+                var returned=System.Windows.Input.Keyboard.FocusedElement as Button;
+                if(!window.IsActive||returned==null||!Equals(returned.Tag,"task-agent-prompt"))
+                    throw new Exception("Native keyboard focus did not return to Agent prompt.");
+                Console.WriteLine("Native prompt focus passed: "+(topmost?"Checklists, Always on top":"task list, normal window")+
+                    ", Copy default, modal tab cycle, focus restored.");
+            }
+        }finally{presentDialog=original;Exit();}
+    }
+
+    void VerifyAgentEditPrompt(){
+        taskListView=0;Select("work");RenderCompact(true);
+        if(taskPromptButton.Visibility!=Visibility.Collapsed)
+            throw new Exception("Agent prompt was visible before opt-in.");
+        var presenter=presentDialog;
+        try{
+            foreach(bool enabled in new[]{true,false}){
+                presentDialog=dialog=>{
+                    var root=(UIElement)dialog.Content;
+                    root.Measure(new Size(764,661));root.Arrange(new Rect(0,0,764,661));root.UpdateLayout();
+                    Visuals<CheckBox>(root).Single(box=>Equals(box.Content,"Show agent edit prompts in Tasks")).IsChecked=enabled;
+                    ClickIn(root,"Save");dialog.Close();return true;
+                };
+                Settings("Tasks");
+                preferenceStore.Reload();
+                if(preferenceStore.Value.showAgentPrompts!=enabled||
+                    (taskPromptButton.Visibility==Visibility.Visible)!=enabled)
+                    throw new Exception("Saved agent prompt preference did not change the Tasks action.");
+                if(!enabled)continue;
+                CaptureShell(profile,"review-task-agent-toolbar.png",1120,820);
+                var bar=Find<DockPanel>("SearchBar");
+                var refresh=bar.Children.OfType<Button>().Single(button=>Equals(button.Tag,"task-refresh"));
+                Point promptPosition=taskPromptButton.TranslatePoint(new Point(),bar);
+                Point refreshPosition=refresh.TranslatePoint(new Point(),bar);
+                if(Math.Abs(promptPosition.X+taskPromptButton.ActualWidth-bar.ActualWidth)>1||
+                    Math.Abs(promptPosition.Y-refreshPosition.Y)>1||promptPosition.X<=refreshPosition.X||
+                    taskPromptButton.ActualHeight!=refresh.ActualHeight)
+                    throw new Exception("Agent prompt and Refresh are not aligned in the search row.");
+                presentDialog=dialog=>{
+                    var surface=(UIElement)dialog.Content;
+                    surface.Measure(new Size(664,381));surface.Arrange(new Rect(0,0,664,381));surface.UpdateLayout();
+                    var field=Visuals<TextBlock>(surface).Single(text=>Equals(text.Tag,"agent-prompt-preview"));
+                    var copy=Visuals<Button>(surface).Single(button=>Equals(button.Content,"Copy prompt"));
+                    var close=Visuals<Button>(surface).Single(button=>Equals(button.Content,"Close"));
+                    if(copy.ActualWidth!=close.ActualWidth||copy.ActualHeight!=close.ActualHeight||
+                        copy.TranslatePoint(new Point(),surface).Y!=close.TranslatePoint(new Point(),surface).Y)
+                        throw new Exception("Agent prompt buttons differ in size or alignment.");
+                    var focus=System.Windows.Input.FocusManager.GetFocusedElement(dialog) as Button;
+                    if(dialog.Title!="Agent prompt"||field.Focusable||focus==null||!Equals(focus.Content,"Copy prompt")||
+                        !field.Text.Contains(WorkSources.Read(profile,0).path)||!field.Text.Contains("Notes:"))
+                        throw new Exception("Agent prompt does not describe the selected task file and its format.");
+                    dialog.Close();return false;
+                };
+                ClickIn(bar,"Agent prompt");
+            }
+            Console.WriteLine("Agent prompt defaults off, follows the saved opt-in, and previews the selected file and format.");
+        }finally{presentDialog=presenter;}
     }
     void VerifyTaskListBehavior(){
-        bool oldAgent=assistantWorkView,oldPersonal=personalTasksView,oldReports=agentUpdatesView;
+        int oldList=taskListView;
         try{
-            agentUpdatesView=false;assistantWorkView=true;personalTasksView=false;Select("work");RenderCompact(true);
-            var navigation=Find<StackPanel>("WorkNavigation");var tabs=navigation.Children.OfType<WrapPanel>().Single().Children.OfType<Button>().ToArray();
-            if(tabs.Length!=3||!tabs.Select(b=>(string)b.Content).SequenceEqual(new[]{TaskLabel(true),PersonalTaskLabel(),TaskLabel(false)}))throw new Exception("Task sections are out of order.");
+            taskListView=0;Select("work");RenderCompact(true);
+            var navigation=TaskNavigationPanel();var tabs=navigation.Children.OfType<Button>().ToArray();
+            var expected=Enumerable.Range(0,3).Where(list=>list==0||HasTaskListFile(list)).Select(TaskListLabel).Concat(new[]{TaskLabel(false)});
+            if(!tabs.Select(System.Windows.Automation.AutomationProperties.GetName).SequenceEqual(expected))throw new Exception("Task sections are out of order.");
             string input="## Active projects\n### Sample project\n1. Review a draft\n   Read the short description.\n   Status: Waiting for review.\n   Next: Inspect the preview.\n\n   Notes:\n   Keep every supporting detail.\n\n## Later / on hold\n### Future project\n2. Deferred task\n   Do not start now.\n";
             rows.Children.Clear();RenderReadableTaskText(input,rows);
             if(Visuals<Expander>(rows).Any(e=>e.IsExpanded)||!Visuals<TextBlock>(rows).Any(t=>t.Text=="Read the short description.")||!Visuals<Expander>(rows).Any(e=>Equals(e.Header,"Deferred work · Do not start")))throw new Exception("Readable task fields or collapsed notes are missing.");
             CaptureShell(profile,"task-lists-agent-preview.png",1120,820);
             double y=navigation.TranslatePoint(new Point(),window).Y;Find<ScrollViewer>("ContentScroll").ScrollToVerticalOffset(100);window.UpdateLayout();
             if(Math.Abs(navigation.TranslatePoint(new Point(),window).Y-y)>.01)throw new Exception("Task buttons move when content scrolls.");
-            personalTasksView=true;assistantWorkView=false;RenderCompact(true);rows.Children.Clear();RenderReadableTaskText("1. Organize family photos\n   Sort pictures into dated folders.\n\n   Notes:\n   Keep the original files.\n\n2. Review the garden plan\n   Check the planting list.",rows);CaptureShell(profile,"task-lists-personal-preview.png",1120,820);
+            taskListView=1;RenderCompact(true);rows.Children.Clear();RenderReadableTaskText("1. Organize family photos\n   Sort pictures into dated folders.\n\n   Notes:\n   Keep the original files.\n\n2. Review the garden plan\n   Check the planting list.",rows);CaptureShell(profile,"task-lists-personal-preview.png",1120,820);
             SetCompact(true);rows.Children.Clear();RenderReadableTaskText(File.ReadAllText(Path.Combine(profile,"Personal Tasks.txt")),rows);Find<ScrollViewer>("ContentScroll").ScrollToHome();CaptureShell(profile,"task-lists-compact-preview.png",(int)window.MinWidth,760);SetCompact(false);
-            assistantWorkView=true;personalTasksView=false;RenderCompact(true);rows.Children.Clear();RenderReadableTaskText(File.ReadAllText(Path.Combine(profile,"Project Tasks.txt")),rows);Find<ScrollViewer>("ContentScroll").ScrollToHome();CaptureShell(profile,"task-lists-agent-real.png",1120,820);
-            assistantWorkView=false;personalTasksView=true;RenderCompact(true);rows.Children.Clear();RenderReadableTaskText(File.ReadAllText(Path.Combine(profile,"Personal Tasks.txt")),rows);Find<ScrollViewer>("ContentScroll").ScrollToHome();CaptureShell(profile,"task-lists-personal-real.png",1120,820);
-            personalTasksView=false;assistantWorkView=false;RenderCompact(true);CaptureShell(profile,"task-lists-checklist-preview.png",1120,820);
+            taskListView=0;RenderCompact(true);rows.Children.Clear();RenderReadableTaskText(File.ReadAllText(Path.Combine(profile,"Project Tasks.txt")),rows);Find<ScrollViewer>("ContentScroll").ScrollToHome();CaptureShell(profile,"task-lists-agent-real.png",1120,820);
+            taskListView=1;RenderCompact(true);rows.Children.Clear();RenderReadableTaskText(File.ReadAllText(Path.Combine(profile,"Personal Tasks.txt")),rows);Find<ScrollViewer>("ContentScroll").ScrollToHome();CaptureShell(profile,"task-lists-personal-real.png",1120,820);
+            taskListView=-1;RenderCompact(true);CaptureShell(profile,"task-lists-checklist-preview.png",1120,820);
             Console.WriteLine("Task layout passed: three ordered fixed buttons, visible descriptions, optional fields, collapsed notes, deferred warning and unchanged checklist renderer.");
-        }finally{assistantWorkView=oldAgent;personalTasksView=oldPersonal;agentUpdatesView=oldReports;Select("software");}
+        }finally{taskListView=oldList;Select("software");}
     }
 }

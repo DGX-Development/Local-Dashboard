@@ -11,16 +11,20 @@ internal sealed partial class WpfDashboard {
         if(height>36)field.MaxHeight=240;
         System.Windows.Automation.AutomationProperties.SetName(field,label);body.Children.Add(field);return field;
     }
-    void EditPersonalTask(string displayed,ReadableTaskBlock selected,bool wholeDocument=false){
-        var snapshot=PersonalTextStore.Open(profile);
-        if(selected!=null&&snapshot.Text!=displayed){personalReadStatus="The file changed since it was displayed. Select Refresh, then edit the latest task.";RenderCompact(true);return;}
+    void SaveTaskText(PersonalTextSnapshot snapshot,string text){
+        SetReadStatus(snapshot.List,PersonalTextStore.Save(profile,snapshot,text));
+        taskReads[snapshot.List]=null;
+    }
+    void EditPersonalTask(string displayed,ReadableTaskBlock selected,bool wholeDocument=false,int list=1){
+        var snapshot=PersonalTextStore.Open(profile,list);
+        if(selected!=null&&snapshot.Text!=displayed){SetReadStatus(list,"The file changed since it was displayed. Select Refresh, then edit the latest task.");RenderCompact(true);return;}
         var draft=selected==null?null:new PersonalTaskDraft(snapshot.Text,selected);
         var content=new DockPanel{Margin=new Thickness(28)};
         var footer=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,18,0,0)};DockPanel.SetDock(footer,Dock.Bottom);content.Children.Add(footer);
         var body=new StackPanel{Margin=new Thickness(0,0,14,0)};content.Children.Add(new ScrollViewer{Content=body,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled});
-        string caption=wholeDocument?"Edit Personal tasks document":selected==null?"Add personal task":"Edit personal task";
+        string caption=(wholeDocument?"Edit document":selected==null?"Add task":"Edit task")+" · "+TaskListLabel(list);
         var dialog=Dialog(caption,700,710,content);
-        body.Children.Add(WorkText(wholeDocument?"Edit your selected text file. Save keeps the changes; Cancel leaves the file alone.":selected==null?"Add a title and short description. Longer notes start collapsed. The new task goes above the first task; existing numbers stay unchanged.":"Edit this task. Other tasks and supplied Status/Next fields stay unchanged. Save keeps your changes."));
+        body.Children.Add(WorkText(wholeDocument?"Edit your selected text file. Save keeps the changes; Cancel leaves the file alone.":selected==null?"Add a title and short description. Longer notes start collapsed. The new task goes after the last task. Existing numbers stay unchanged.":"Edit this task. Other tasks and supplied Status/Next fields stay unchanged. Save keeps your changes."));
         var location=TaskDetails("File location",snapshot.Source.path);body.Children.Add(location);
         TextBox title=null,summary=null,notes=null,document=null;
         if(wholeDocument){document=PersonalEditorField(body,"Document text",snapshot.Text,360);document.MaxHeight=Double.PositiveInfinity;}
@@ -34,16 +38,16 @@ internal sealed partial class WpfDashboard {
         var save=StandardAction(ActionButton("Save",()=>{
             try{
                 string text=wholeDocument?(document.Text==initialDocument?snapshot.Text:document.Text):draft==null?PersonalTaskDraft.Add(snapshot.Text,title.Text,summary.Text,notes.Text):draft.Apply(title.Text,summary==null?null:summary.Text,notes==null?null:notes.Text,document==null?null:document.Text==initialDocument?draft.Body:document.Text);
-                personalReadStatus=PersonalTextStore.Save(profile,snapshot,text);dialog.Close();RenderCompact(true);
+                SaveTaskText(snapshot,text);dialog.Close();RenderCompact(true);
             }catch(Exception error){feedback.Text=error.Message;feedback.BringIntoView();}
         }));save.Tag="personal-save";footer.Children.Add(save);
         if(selected!=null)
         {
             var delete=StandardAction(ActionButton("Delete task",()=>{
-                if(MessageBox.Show(dialog,"Delete this task and its notes from the selected Personal tasks file?","Delete task",MessageBoxButton.YesNo,MessageBoxImage.Question)!=MessageBoxResult.Yes)return;
+                if(!ShowNotice(dialog,"Delete task","Delete this task and its notes from the selected task file?","Delete"))return;
                 try
                 {
-                    personalReadStatus=PersonalTextStore.Save(profile,snapshot,snapshot.Text.Remove(selected.Start,selected.Length));
+                    SaveTaskText(snapshot,snapshot.Text.Remove(selected.Start,selected.Length));
                     dialog.Close();RenderCompact(true);
                 }
                 catch(Exception error){feedback.Text=error.Message;feedback.BringIntoView();}

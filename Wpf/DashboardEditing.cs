@@ -27,7 +27,7 @@ internal sealed partial class WpfDashboard
         var left=new Border{Width=306,Padding=new Thickness(0,0,20,0),Margin=new Thickness(0,0,22,12),BorderThickness=new Thickness(0,0,1,0)};
         left.SetResourceReference(Border.BorderBrushProperty,"Theme4A4A4A");
         DockPanel.SetDock(left,Dock.Left);body.Children.Add(left);
-        var picker=new ListBox{SelectedValuePath="id",ItemTemplate=ReorderTemplate("label")};
+        var picker=new ListBox{SelectedValuePath="id",ItemTemplate=ReorderTemplate("label"),ItemContainerStyle=EditorRowStyle()};
         ScrollViewer.SetVerticalScrollBarVisibility(picker,ScrollBarVisibility.Auto);
         System.Windows.Automation.AutomationProperties.SetName(picker,"Section");
         var categoryPanel=new DockPanel{Margin=new Thickness(0,0,0,12)};
@@ -58,6 +58,14 @@ internal sealed partial class WpfDashboard
         var linksHeading=new TextBlock{FontSize=22,FontWeight=FontWeights.SemiBold,TextWrapping=TextWrapping.Wrap};
         DockPanel.SetDock(linksHeading,Dock.Top);right.Children.Add(linksHeading);
         var feedback=WorkText("");
+        var feedbackStyle=new Style(typeof(TextBlock),feedback.Style);
+        var hideEmptyFeedback=new DataTrigger{
+            Binding=new System.Windows.Data.Binding("Text"){RelativeSource=System.Windows.Data.RelativeSource.Self},
+            Value=""
+        };
+        hideEmptyFeedback.Setters.Add(new Setter(UIElement.VisibilityProperty,Visibility.Collapsed));
+        feedbackStyle.Triggers.Add(hideEmptyFeedback);
+        feedback.Style=feedbackStyle;
         DockPanel.SetDock(feedback,Dock.Top);right.Children.Add(feedback);
         var linkActions=new WrapPanel{Margin=new Thickness(0,8,0,8)};
         DockPanel.SetDock(linkActions,Dock.Top);right.Children.Add(linkActions);
@@ -71,15 +79,17 @@ internal sealed partial class WpfDashboard
         DockPanel.SetDock(empty,Dock.Top);right.Children.Add(empty);
         var linkEditor=new Grid();
         linkEditor.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});
-        linkEditor.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
+        linkEditor.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star),MaxHeight=360});
         right.Children.Add(linkEditor);
-        var list=new ListBox{ItemTemplate=ReorderTemplate("name"),Margin=new Thickness(0,0,0,14)};
+        var list=new ListBox{ItemTemplate=ReorderTemplate("name"),ItemContainerStyle=EditorRowStyle(),Margin=new Thickness(0,0,0,14)};
         ScrollViewer.SetVerticalScrollBarVisibility(list,ScrollBarVisibility.Auto);
         System.Windows.Automation.AutomationProperties.SetName(list,"Dashboard entries");
         linkEditor.Children.Add(list);
         var fields=new StackPanel();
-        Grid.SetRow(fields,1);
-        linkEditor.Children.Add(fields);
+        var fieldScroll=new ScrollViewer{Content=fields,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled};
+        Grid.SetRow(fieldScroll,1);
+        linkEditor.Children.Add(fieldScroll);
         var name=new TextBox{MaxLength=120};
         Field(fields,"Name",name);
         fields.Children.Add(new TextBlock{Text="Opens"});
@@ -105,9 +115,7 @@ internal sealed partial class WpfDashboard
         fields.Children.Add(WorkText("Link icon",true));
         var linkIconRow=new WrapPanel();linkIconRow.Children.Add(linkIcon);linkIconRow.Children.Add(changeLinkIcon);linkIconRow.Children.Add(useWebsiteIcon);fields.Children.Add(linkIconRow);
 
-        double ownerWidth=window.ActualWidth>0?window.ActualWidth:window.Width;
-        double ownerHeight=window.ActualHeight>0?window.ActualHeight:window.Height;
-        var dialog=Dialog("Edit Dashboard",ownerWidth,ownerHeight,body);
+        var dialog=DashboardEditorDialog("Edit Dashboard",body);
         Entry selected=null;
         LinkTarget target=null;
         bool loading=false;
@@ -233,7 +241,7 @@ internal sealed partial class WpfDashboard
         };
         removeDestination.Click+=(s,e)=>{
             if(selected==null||target==null||selected.targets.Count<=1)return;
-            if(MessageBox.Show(dialog,"Remove this destination from the link?","Remove destination",MessageBoxButton.YesNo,MessageBoxImage.Question)!=MessageBoxResult.Yes)return;
+            if(!ShowNotice(dialog,"Remove destination","Remove this destination from the link? The change takes effect when you save.","Remove"))return;
             loading=true;
             int index=destinations.SelectedIndex;
             var removed=target;
@@ -246,6 +254,7 @@ internal sealed partial class WpfDashboard
         };
         location.TextChanged+=(s,e)=>{
             if(loading||target==null)return;
+            if(feedback.Text.EndsWith(" for this link.",StringComparison.Ordinal))feedback.Text="";
             websiteIconRequest++;
             websiteIconStatus.Visibility=Visibility.Collapsed;
             if(target.kind=="web")
@@ -280,7 +289,7 @@ internal sealed partial class WpfDashboard
             int all=groups.items.FindIndex(group=>group.id=="all");
             groups.items.Insert(all<0?groups.items.Count:all,item);
             sections.Add(item);
-            categoriesChanged=true;refreshSections(item);categoryName.Focus();categoryName.SelectAll();
+            categoriesChanged=true;refreshSections(item);picker.ScrollIntoView(item);categoryName.Focus();categoryName.SelectAll();
         });
         removeCategory.Click+=(s,e)=>Protect(()=>{
             var item=activeCategory;
@@ -295,7 +304,7 @@ internal sealed partial class WpfDashboard
                 if(destination==null)return;
                 foreach(var entry in linked)entry.section=destination.id;
             }
-            else if(MessageBox.Show(dialog,"Remove \""+item.label+"\"? This takes effect when you save.","Remove category",MessageBoxButton.YesNo,MessageBoxImage.Question)!=MessageBoxResult.Yes)return;
+            else if(!ShowNotice(dialog,"Remove category","Remove \""+item.label+"\"? This takes effect when you save.","Remove"))return;
             groups.items.Remove(item);groups.orders.Remove(item.id);groups.customized=true;
             sections.Remove(item);categoriesChanged=true;
             refreshSections(destination??others.FirstOrDefault());
@@ -305,7 +314,11 @@ internal sealed partial class WpfDashboard
         addLink.Click+=(s,e)=>Protect(()=>{
             var active=picker.SelectedItem as SidebarItem;
             if(active==null)return;
+            var order=list.Items.Cast<Entry>().Select(entry=>entry.id).ToList();
             var added=draft.Add(active.id,"folder");
+            order.Add(added.id);
+            groups.orders[active.id]=order;
+            categoriesChanged=true;
             picker.SelectedItem=active;refreshEntries();list.SelectedItem=added;
             list.UpdateLayout();
             list.ScrollIntoView(added);
@@ -313,7 +326,7 @@ internal sealed partial class WpfDashboard
         });
         removeLink.Click+=(s,e)=>{
             if(selected==null)return;
-            if(MessageBox.Show(dialog,"Remove \""+selected.name+"\" from Dashboard?\n\nThe linked file, folder or website will not be deleted. This change takes effect when you save.","Remove link",MessageBoxButton.YesNo,MessageBoxImage.Question)!=MessageBoxResult.Yes)return;
+            if(!ShowNotice(dialog,"Remove link","Remove \""+selected.name+"\" from Dashboard?\n\nThis takes effect when you save. The linked file, folder or website stays in place.","Remove"))return;
             draft.Remove(selected);selected=null;refreshEntries();
         };
         EnableEditorReorder(picker,(from,to)=>{
@@ -342,6 +355,18 @@ internal sealed partial class WpfDashboard
         footer.Children.Add(StandardAction(ActionButton("Save",()=>Protect(()=>{
             if(categoriesChanged&&groups.items.Any(item=>!SidebarStore.ValidLabel(item.label)))
                 throw new IOException("Enter a category name of 1 to 60 characters.");
+            var incomplete=draft.Entries.FirstOrDefault(entry=>!previousIcons.ContainsKey(entry.id)&&entry.targets.Any(destination=>
+                String.IsNullOrWhiteSpace(destination.kind=="web"?destination.url:destination.path)));
+            if(incomplete!=null)
+            {
+                picker.SelectedItem=sections.First(item=>item.id==incomplete.section);
+                list.SelectedItem=incomplete;
+                list.ScrollIntoView(incomplete);
+                feedback.Text=target.kind=="web"?"Enter a website address for this link.":
+                    target.kind=="document"?"Choose a document for this link.":"Choose a folder for this link.";
+                location.Focus();
+                return;
+            }
             DashboardData.SaveDashboardEdit(profile,draft,sidebarStore,snapshot,categoriesChanged?groups:null);
             if(!nonWindowedVerification)dialog.DialogResult=true;
         }))));
@@ -490,7 +515,7 @@ internal sealed partial class WpfDashboard
         var row=new DockPanel();
         if(browse!=null)
         {
-            browse.Height=36;browse.MinWidth=84;browse.Margin=new Thickness(8,5,0,14);
+            browse.Height=36;browse.MinWidth=88;browse.Margin=new Thickness(8,5,0,14);
             DockPanel.SetDock(browse,Dock.Right);
             row.Children.Add(browse);
         }
@@ -532,6 +557,13 @@ internal sealed partial class WpfDashboard
             int index=order.IndexOf(entry.id);
             return index>=0?index:order.Count==0&&pins.Contains(entry.id)?-1:Int32.MaxValue;
         }).ThenBy(entry=>entry.name,StringComparer.CurrentCultureIgnoreCase);
+    }
+
+    Style EditorRowStyle(){
+        var style=new Style(typeof(ListBoxItem),(Style)window.FindResource(typeof(ListBoxItem)));
+        style.Setters.Add(new Setter(FrameworkElement.MinHeightProperty,48.0));
+        style.Setters.Add(new Setter(Control.VerticalContentAlignmentProperty,VerticalAlignment.Center));
+        return style;
     }
 
     static DataTemplate ReorderTemplate(string label)

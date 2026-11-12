@@ -13,15 +13,23 @@ internal sealed partial class WpfDashboard {
     const string SupportWebsite="https://dgx.digitalguy.me/contact.html";
     string lastSettingsPage="Appearance";
     string appearancePreviewTheme;
-    bool agentUpdatesView;
     System.Drawing.Color SavedAccent(){var p=preferenceStore.Value;return DashboardAccent.Read((DashboardTheme.Dark?p.darkAccent:p.lightAccent)??p.accentColor);}
-    string TaskLabel(bool agent){var p=preferenceStore.Value;var label=agent?p.agentTasksLabel:p.checklistLabel;return String.IsNullOrWhiteSpace(label)||(agent?String.Equals(label,"Agent Tasks",StringComparison.OrdinalIgnoreCase):new[]{"My Checklist","Checklist","Checklists"}.Any(x=>String.Equals(label,x,StringComparison.OrdinalIgnoreCase)))?(agent?"Agent tasks":"Checklists"):label;}
-    string PersonalTaskLabel(){var label=preferenceStore.Value.personalTasksLabel;return String.IsNullOrWhiteSpace(label)?"Personal tasks":label;}
+    string TaskLabel(bool agent){
+        if(agent)return TaskListLabel(0);
+        string label=preferenceStore.Value.checklistLabel;
+        return String.IsNullOrWhiteSpace(label)||new[]{"My Checklist","Checklist","Checklists"}.Any(value=>String.Equals(label,value,StringComparison.OrdinalIgnoreCase))?"Checklists":label;
+    }
+    string PersonalTaskLabel(){return TaskListLabel(1);}
+    string TaskListLabel(int list){
+        var preferences=preferenceStore.Value;
+        string label=new[]{preferences.agentTasksLabel,preferences.personalTasksLabel,preferences.thirdTaskListLabel}[list];
+        return String.IsNullOrWhiteSpace(label)?"Task list "+(list+1):label;
+    }
     static Button StandardAction(Button button){button.Height=36;button.MinWidth=88;button.Width=Double.NaN;button.Padding=new Thickness(12,0,12,0);button.Margin=new Thickness(8,0,0,0);button.HorizontalContentAlignment=HorizontalAlignment.Center;button.VerticalContentAlignment=VerticalAlignment.Center;return button;}
     static TextBox NamedField(string name,string text,int limit){var box=new TextBox{Text=text,MaxLength=limit};System.Windows.Automation.AutomationProperties.SetName(box,name);return box;}
     static string ValidTaskLabel(string value){value=(value??"").Trim();if(value.Length==0||value.Length>40||value.Any(Char.IsControl))throw new IOException("Use a task label of 1 to 40 characters.");return value;}
     void Settings(){Settings("Appearance");}
-    void Settings(string initialPage){
+    void Settings(string initialPage,int taskList=-1){
         preferenceStore.Reload();var current=preferenceStore.Value;var original=DashboardAccent.Selected;
         var content=new DockPanel{Margin=new Thickness(28)};
         var footer=new WrapPanel{HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,18,0,0)};DockPanel.SetDock(footer,Dock.Bottom);content.Children.Add(footer);
@@ -32,7 +40,7 @@ internal sealed partial class WpfDashboard {
         appearance.Children.Add(new TextBlock{Text="Appearance",FontSize=22,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,12)});
         appearance.Children.Add(WorkText("Changes preview immediately. Save keeps them; Cancel restores your saved appearance."));
         var theme=new ComboBox{ItemsSource=new[]{"System","Light","Dark"},SelectedItem=current.theme??"Dark"};System.Windows.Automation.AutomationProperties.SetName(theme,"Appearance theme");appearance.Children.Add(theme);
-        var previewCard=new StackPanel{Margin=new Thickness(18)};
+        var previewCard=new StackPanel{Margin=new Thickness(18,12,18,12)};
         previewCard.Children.Add(WorkText("Appearance preview",true));
         var sample=new DockPanel{LastChildFill=false};var sampleIcon=new Image{Source=BrandVector(original),Width=32,Height=32,Margin=new Thickness(0,0,12,0)};sample.Children.Add(sampleIcon);
         var sampleButton=StandardAction(new Button{Content="Sample button",IsHitTestVisible=false,Focusable=false});sampleButton.SetResourceReference(Control.ForegroundProperty,"DashboardAccent");sample.Children.Add(sampleButton);previewCard.Children.Add(sample);
@@ -46,28 +54,49 @@ internal sealed partial class WpfDashboard {
         var sliders=new[]{hue,saturation,brightness};var names=new[]{"Hue","Saturation","Brightness"};
         for(int i=0;i<sliders.Length;i++){custom.Children.Add(WorkText(names[i]));sliders[i].Margin=new Thickness(0,0,0,8);System.Windows.Automation.AutomationProperties.SetName(sliders[i],names[i]);custom.Children.Add(sliders[i]);}
         var spectrum=new LinearGradientBrush();string[] spectrumColors={"#FF0000","#FFFF00","#00FF00","#00FFFF","#0000FF","#FF00FF","#FF0000"};for(int i=0;i<spectrumColors.Length;i++)spectrum.GradientStops.Add(new GradientStop((Color)ColorConverter.ConvertFromString(spectrumColors[i]),i/6.0));custom.Children.Insert(0,new Border{Height=12,CornerRadius=new CornerRadius(6),Background=spectrum,Margin=new Thickness(0,8,0,8)});
-        appearance.Children.Add(new Expander{Header="Custom color",Content=custom,Margin=new Thickness(0,0,0,16)});
-        var agentLabel=NamedField("Agent task button label",TaskLabel(true),40);
-        var personalLabel=NamedField("Personal task button label",PersonalTaskLabel(),40);
+        var showAllLinks=Option(appearance,"Show All links in the sidebar",current.showAllLinks!=false);
+        var customColor=new Expander{Header="Custom color",Content=custom};
+        customColor.Expanded+=(s,e)=>{
+            dialog.Dispatcher.BeginInvoke(DispatcherPriority.Loaded,new Action(()=>{
+                if(customColor.IsExpanded&&appearance.Visibility==Visibility.Visible)scroll.ScrollToBottom();
+            }));
+        };
+        appearance.Children.Add(customColor);
+        var agentLabel=NamedField("Task list 1 label",TaskListLabel(0),40);
+        var personalLabel=NamedField("Task list 2 label",TaskListLabel(1),40);
+        var thirdLabel=NamedField("Task list 3 label",TaskListLabel(2),40);
         var checklistLabel=NamedField("Checklist button label",TaskLabel(false),40);
         var windowOptions=new StackPanel{Margin=new Thickness(0,0,14,0)};windowOptions.Children.Add(new TextBlock{Text="Window & startup",FontSize=22,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,14)});
-        var close=Option(windowOptions,"X button: keep running in the system tray",current.closeToTray);windowOptions.Children.Add(WorkText("On: X hides the window and keeps Dashboard running near the Windows clock. Off: X quits Dashboard."));
-        var minimize=Option(windowOptions,"Minimize button: hide in the system tray",current.minimizeToTray);windowOptions.Children.Add(WorkText("On: minimize hides Dashboard near the Windows clock. Off: minimize keeps its button on the taskbar."));
-        windowOptions.Children.Add(WorkText("Double-click the tray icon to return. To quit, choose File > Exit or right-click the tray icon and choose Exit."));
-        var startup=Option(windowOptions,"Start Local Dashboard when I sign in to Windows",current.startWithWindows);if(fixture)windowOptions.Children.Add(WorkText("This review profile simulates startup settings; Windows sign-in is unchanged."));
-        var startMin=Option(windowOptions,"Start minimized in the system tray",current.startMinimized);windowOptions.Children.Add(WorkText("Start minimized applies when you open Dashboard and when Windows starts it."));
-        bool resetWindowSizes=false;var resetWindowNote=WorkText("Dashboard and Compact view remember separate positions and sizes. Other dialogs open at their standard sizes.");
+        windowOptions.Children.Add(WorkText("Window buttons",true));
+        var close=Option(windowOptions,"Close to the system tray",current.closeToTray);
+        var minimize=Option(windowOptions,"Minimize to the system tray",current.minimizeToTray);
+        windowOptions.Children.Add(WorkText("Use File > Exit to quit Dashboard."));
+        windowOptions.Children.Add(WorkRule());
+        windowOptions.Children.Add(WorkText("Startup",true));
+        var startup=Option(windowOptions,"Start when I sign in to Windows",current.startWithWindows);
+        if(fixture)windowOptions.Children.Add(WorkText("This review profile does not change Windows sign-in."));
+        var startMin=Option(windowOptions,"Start minimized in the system tray",current.startMinimized);
+        windowOptions.Children.Add(WorkRule());
+        windowOptions.Children.Add(WorkText("Window sizes",true));
+        bool resetWindowSizes=false;
+        var resetWindowNote=WorkText("");
+        resetWindowNote.Visibility=Visibility.Collapsed;
         var resetSizes=StandardAction(ActionButton("Reset window sizes",()=>{}));
         resetSizes.HorizontalAlignment=HorizontalAlignment.Left;
+        resetSizes.Margin=new Thickness(0,8,0,0);
         resetSizes.Click+=(s,e)=>{
             resetWindowSizes=true;
             resetWindowNote.Text="Click Save to reset both window sizes.";
+            resetWindowNote.Visibility=Visibility.Visible;
             resetWindowNote.BringIntoView();
         };
         windowOptions.Children.Add(resetSizes);
         windowOptions.Children.Add(resetWindowNote);
         appearance.Children.Remove(card);DockPanel.SetDock(card,Dock.Top);content.Children.Insert(2,card);
-        Action saveSource;var tasks=BuildWorkSource(out saveSource,false,new[]{agentLabel,personalLabel,checklistLabel});
+
+        Action saveSource;var tasks=BuildWorkSource(out saveSource,false,new[]{agentLabel,personalLabel,thirdLabel,checklistLabel},taskList);
+        tasks.Children.Add(WorkRule());
+        var agentPrompts=Option(tasks,"Show agent edit prompts in Tasks",current.showAgentPrompts==true);
         var pageNames=new[]{"Appearance","Window","Tasks"};var pageContents=new FrameworkElement[]{appearance,windowOptions,tasks};foreach(var page in pageContents)pages.Children.Add(page);
         bool updating=false;string dark=current.darkAccent,light=current.lightAccent;bool currentDark=DashboardTheme.Dark; if(currentDark)dark=DashboardAccent.Format(original);else light=DashboardAccent.Format(original);
         if(String.IsNullOrEmpty(dark))dark="#9AD9C1";if(String.IsNullOrEmpty(light))light="#237352";
@@ -77,9 +106,9 @@ internal sealed partial class WpfDashboard {
         bool saved=false;
         var save=StandardAction(ActionButton("Save",()=>Protect(()=>{
             System.Drawing.Color color;if(!DashboardAccent.TryParse(hex.Text,out color))throw new IOException("Enter # followed by six hexadecimal digits.");
-            string a=ValidTaskLabel(agentLabel.Text),c=ValidTaskLabel(checklistLabel.Text),p=ValidTaskLabel(personalLabel.Text);if(new[]{a,c,p}.Distinct(StringComparer.CurrentCultureIgnoreCase).Count()!=3)throw new IOException("Give the task sections different labels.");
+            string a=ValidTaskLabel(agentLabel.Text),c=ValidTaskLabel(checklistLabel.Text),p=ValidTaskLabel(personalLabel.Text),third=ValidTaskLabel(thirdLabel.Text);if(new[]{a,c,p,third}.Distinct(StringComparer.CurrentCultureIgnoreCase).Count()!=4)throw new IOException("Give the task sections different labels.");
             applyTimer.Stop();apply();saveSource();QueueTaskbarRefresh(true);
-            preferenceStore.Save(new WindowPreferences{closeToTray=close.IsChecked==true,minimizeToTray=minimize.IsChecked==true,startWithWindows=startup.IsChecked==true,startMinimized=startMin.IsChecked==true,theme=theme.SelectedItem as string,accentColor=DashboardAccent.Format(color),darkAccent=dark,lightAccent=light,agentTasksLabel=a,checklistLabel=c,personalTasksLabel=p});
+            preferenceStore.Save(new WindowPreferences{closeToTray=close.IsChecked==true,minimizeToTray=minimize.IsChecked==true,startWithWindows=startup.IsChecked==true,startMinimized=startMin.IsChecked==true,theme=theme.SelectedItem as string,accentColor=DashboardAccent.Format(color),darkAccent=dark,lightAccent=light,agentTasksLabel=a,checklistLabel=c,personalTasksLabel=p,thirdTaskListLabel=third,showAllLinks=showAllLinks.IsChecked==true,showAgentPrompts=agentPrompts.IsChecked==true});
             saved=true;
             if(!nonWindowedVerification)dialog.DialogResult=true;
         })));footer.Children.Add(save);footer.Children.Add(StandardAction(new Button{Content="Cancel",IsCancel=true}));
@@ -95,6 +124,7 @@ internal sealed partial class WpfDashboard {
             applyTimer.Stop();appearancePreviewTheme=null;DashboardTheme.Apply(preferenceStore.Value.theme);ApplyAccent(SavedAccent());RefreshGlyphs();ThemeWindow(window,null);if(section=="work")RenderCompact(true);
             // Ordinary Settings always opens Appearance; contextual links select their own page.
         }
+        if(saved&&current.showAllLinks!=preferenceStore.Value.showAllLinks)Reload();
         if(saved&&resetWindowSizes)ResetWindowSizes();
     }
     static double HsvSaturation(System.Drawing.Color c){double max=Math.Max(c.R,Math.Max(c.G,c.B)),min=Math.Min(c.R,Math.Min(c.G,c.B));return max==0?0:(max-min)/max;}
@@ -135,19 +165,19 @@ internal sealed partial class WpfDashboard {
             presentDialog=dialog=>{
                 var root=dialog.Content as DependencyObject;Capture(dialog.Content as UIElement,Path.Combine(profile,"polish-settings-behavior.png"),764,661);var theme=Visuals<ComboBox>(root).Single(c=>System.Windows.Automation.AutomationProperties.GetName(c)=="Appearance theme");theme.SelectedItem="Light";if(DashboardTheme.Dark)throw new Exception("Theme did not preview immediately.");
                 var input=Visuals<TextBox>(root).Single(t=>System.Windows.Automation.AutomationProperties.GetName(t)=="Accent hex color");input.Text="#123ABC";WaitForAppearancePreview();
-                if(DashboardAccent.Format(DashboardAccent.Selected)!="#123ABC"||!shellBrand.RefreshKey.Contains("123ABC")||dialog.Icon!=window.Icon)throw new Exception("Live appearance or icon resource did not follow custom color.");
+                if(DashboardAccent.Format(DashboardAccent.Selected)!="#123ABC"||dialog.Icon==null||DashboardData.Hash(File.ReadAllBytes(shellBrand.IconResource.Substring(0,shellBrand.IconResource.Length-2)))!=DashboardData.Hash(DashboardBrand.IconBytes(DashboardAccent.Selected)))throw new Exception("Live appearance or icon resource did not follow custom color.");
                 var custom=Visuals<Expander>(root).Single(x=>Equals(x.Header,"Custom color"));custom.IsExpanded=true;var scrolling=Visuals<ScrollViewer>(root).First(v=>v.Content is Grid);scrolling.ScrollToVerticalOffset(280);Capture(dialog.Content as UIElement,Path.Combine(profile,"polish-custom-color.png"),764,661);var hue=Visuals<Slider>(root).Single(x=>System.Windows.Automation.AutomationProperties.GetName(x)=="Hue");hue.Value=70;WaitForAppearancePreview();if(DashboardAccent.Format(DashboardAccent.Selected)=="#123ABC")throw new Exception("Hue slider did not update the live color.");custom.IsExpanded=false;
                 foreach(string page in new[]{"Appearance","Window","Tasks"}){ClickIn(root,page);Capture(dialog.Content as UIElement,Path.Combine(profile,"polish-light-"+page+".png"),764,661);foreach(var b in Visuals<Button>(root).Where(b=>Equals(b.Tag,"settings-category"))){var cp=Visuals<ContentPresenter>(b).First();var p=cp.TranslatePoint(new Point(),b);if(Math.Abs(p.X+cp.ActualWidth/2-b.ActualWidth/2)>1)throw new Exception("Settings category label drift: "+b.Content);}}
                 dialog.Close();return false;
             };
             Settings("Appearance");if((File.Exists(path)?File.ReadAllText(path):null)!=before||DashboardAccent.Selected!=original||DashboardTheme.Preference!=originalTheme)throw new Exception("Cancel failed to restore saved appearance.");
-            presentDialog=dialog=>{var root=dialog.Content as DependencyObject;Capture(dialog.Content as UIElement,Path.Combine(profile,"polish-settings-behavior.png"),764,661);ClickIn(root,"Tasks");Visuals<TextBox>(root).Single(t=>System.Windows.Automation.AutomationProperties.GetName(t)=="Agent task button label").Text="Team tasks";Visuals<TextBox>(root).Single(t=>System.Windows.Automation.AutomationProperties.GetName(t)=="Checklist button label").Text="Personal list";Visuals<ComboBox>(root).Single(c=>System.Windows.Automation.AutomationProperties.GetName(c)=="Appearance theme").SelectedItem="Light";Visuals<TextBox>(root).Single(t=>System.Windows.Automation.AutomationProperties.GetName(t)=="Accent hex color").Text="#345678";ClickIn(root,"Save");dialog.Close();return true;};
+            presentDialog=dialog=>{var root=dialog.Content as DependencyObject;Capture(dialog.Content as UIElement,Path.Combine(profile,"polish-settings-behavior.png"),764,661);ClickIn(root,"Tasks");Visuals<TextBox>(root).Single(t=>System.Windows.Automation.AutomationProperties.GetName(t)=="Task list 1 label").Text="Team tasks";Visuals<TextBox>(root).Single(t=>System.Windows.Automation.AutomationProperties.GetName(t)=="Checklist button label").Text="Personal list";Visuals<ComboBox>(root).Single(c=>System.Windows.Automation.AutomationProperties.GetName(c)=="Appearance theme").SelectedItem="Light";Visuals<TextBox>(root).Single(t=>System.Windows.Automation.AutomationProperties.GetName(t)=="Accent hex color").Text="#345678";ClickIn(root,"Save");dialog.Close();return true;};
             Settings();var reopened=new WindowPreferenceStore(path,new MemoryStartupEntry());if(reopened.Value.agentTasksLabel!="Team tasks"||reopened.Value.checklistLabel!="Personal list"||reopened.Value.lightAccent!="#345678"||reopened.Value.theme!="Light")throw new Exception("Appearance or label Save did not persist.");
-            Select("work");agentUpdatesView=true;RenderCompact(true);if(!Visuals<Button>(Find<StackPanel>("WorkNavigation")).Any(b=>Equals(b.Content,"Team tasks")))throw new Exception("Report view removed task navigation.");ClickIn(Find<StackPanel>("WorkNavigation"),"Personal list");if(agentUpdatesView||assistantWorkView)throw new Exception("Custom checklist label routes incorrectly.");
+            Select("work");RenderCompact(true);if(!TaskNavigationPanel().Children.OfType<Button>().Any(b=>System.Windows.Automation.AutomationProperties.GetName(b)=="Team tasks"))throw new Exception("Task navigation did not use the saved list label.");ClickWork("Personal list");if(taskListView!=-1)throw new Exception("Custom checklist label routes incorrectly.");
             var top=Find<StackPanel>("FullWindowActions").Children.OfType<Button>().Single(b=>Equals(b.Tag,"always-on-top"));bool oldTop=window.Topmost;top.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));if(window.Topmost==oldTop)throw new Exception("Pin did not toggle.");top.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             if(!(GlyphSource("settings") is DrawingImage))throw new Exception("Command glyph is still a bitmap.");
             var activate=activateFolder;var launch=launchFolder;try{int launched=0;activateFolder=p=>false;launchFolder=p=>launched++;RequestDataFolder();RequestDataFolder();if(launched!=1)throw new Exception("Repeated folder request launched duplicates.");activateFolder=p=>true;if(!RequestDataFolder()||launched!=1)throw new Exception("Existing Explorer window was not reused.");}finally{activateFolder=activate;launchFolder=launch;lastFolderRequest=DateTime.MinValue;}
-            Console.WriteLine("Polish behavior passed: immediate theme/color/icon-resource preview, Cancel rollback, saved labels and theme accents, category centering, report navigation, pin toggle, vector glyphs and duplicate-folder request prevention. Explorer activation and Windows taskbar appearance still require native review.");
-        }finally{if(before==null){if(File.Exists(path))File.Delete(path);}else DashboardData.Atomic(path,System.Text.Encoding.UTF8.GetBytes(before));preferenceStore.Reload();DashboardTheme.Apply(originalTheme);ApplyAccent(original);RefreshGlyphs();presentDialog=presenter;agentUpdatesView=false;assistantWorkView=true;}
+            Console.WriteLine("Polish behavior passed: immediate theme/color/icon-resource preview, Cancel rollback, saved labels and theme accents, category centering, task navigation, pin toggle, vector glyphs and duplicate-folder request prevention. Explorer activation and Windows taskbar appearance still require native review.");
+        }finally{if(before==null){if(File.Exists(path))File.Delete(path);}else DashboardData.Atomic(path,System.Text.Encoding.UTF8.GetBytes(before));preferenceStore.Reload();DashboardTheme.Apply(originalTheme);ApplyAccent(original);RefreshGlyphs();presentDialog=presenter;taskListView=0;}
     }
 }

@@ -8,6 +8,7 @@ using System.Collections.Generic;
 
 internal sealed class PersonalTextSnapshot {
     internal WorkSourceChoice Source;
+    internal int List;
     internal string Selection,Text,Hash;
     internal byte[] Bytes,Preamble;
     internal Encoding Encoding;
@@ -19,10 +20,11 @@ internal sealed class PersonalEditRecovery {
 }
 internal static class PersonalTextStore {
     static readonly Encoding Utf8=new UTF8Encoding(false,true);
-    internal static string RecoveryPath(string profile){return Path.Combine(profile,".local","personal-edit-recovery.json");}
-    internal static PersonalTextSnapshot Open(string profile){
-        string token=WorkSources.Token(profile,true);var source=WorkSources.Read(profile,true);
-        if(CloudSources.IsCloud(source.kind))throw new IOException("Choose a local text file in Settings > Tasks before editing Personal tasks.");
+    internal static string RecoveryPath(string profile,int list=1){return Path.Combine(profile,".local",list==1?"personal-edit-recovery.json":"task-list-"+(list+1)+"-edit-recovery.json");}
+    internal static PersonalTextSnapshot Open(string profile,int list=1){
+        string label="Task list "+(list+1);
+        string token=WorkSources.Token(profile,list);var source=WorkSources.Read(profile,list);
+        if(CloudSources.IsCloud(source.kind))throw new IOException("Choose a local text file in Settings > Tasks before editing this task list.");
         byte[] bytes=DashboardData.ReadBounded(source.path,1048576);Encoding encoding=Utf8;int bom=0;
         if(bytes.Take(4).SequenceEqual(new byte[]{255,254,0,0})){encoding=new UTF32Encoding(false,true,true);bom=4;}
         else if(bytes.Take(4).SequenceEqual(new byte[]{0,0,254,255})){encoding=new UTF32Encoding(true,true,true);bom=4;}
@@ -31,8 +33,8 @@ internal static class PersonalTextStore {
         else if(bytes.Take(2).SequenceEqual(new byte[]{254,255})){encoding=new UnicodeEncoding(true,true,true);bom=2;}
         string text=encoding.GetString(bytes,bom,bytes.Length-bom);
         if(text.Contains('\0'))throw new IOException("This is not a supported text document.");
-        if(WorkSources.Token(profile,true)!=token)throw new IOException("The Personal tasks location changed. Reopen the editor.");
-        return new PersonalTextSnapshot{Source=source,Selection=token,Text=text,Hash=DashboardData.Hash(bytes),Bytes=bytes,Preamble=bytes.Take(bom).ToArray(),Encoding=encoding};
+        if(WorkSources.Token(profile,list)!=token||WorkSources.Identity(WorkSources.Read(profile,list))!=WorkSources.Identity(source))throw new IOException("The "+label+" location changed. Reopen the editor.");
+        return new PersonalTextSnapshot{Source=source,List=list,Selection=token,Text=text,Hash=DashboardData.Hash(bytes),Bytes=bytes,Preamble=bytes.Take(bom).ToArray(),Encoding=encoding};
     }
     internal static string WithTimestamp(string before,string after){
         if(before==after)return before;
@@ -47,11 +49,13 @@ internal static class PersonalTextStore {
         if(text.Contains('\0'))throw new IOException("The document cannot contain NUL characters.");
         byte[] next=snapshot.Preamble.Concat(snapshot.Encoding.GetBytes(text)).ToArray();
         if(next.Length>1048576)throw new IOException("Keep this text document within 1 MiB. Nothing was saved.");
-        string journal=RecoveryPath(profile);bool locked=false;
-        using(var mutex=new Mutex(false,ChecklistStore.LockName(WorkSources.Config(profile,true))))try{
+        int list=snapshot.List;
+        string label="Task list "+(list+1);
+        string journal=RecoveryPath(profile,list);bool locked=false;
+        using(var mutex=new Mutex(false,ChecklistStore.LockName(WorkSources.Config(profile,list))))try{
             try{locked=mutex.WaitOne(0);}catch(AbandonedMutexException){locked=true;}
-            if(!locked)throw new IOException("Personal tasks is busy. Try saving again.");
-            if(WorkSources.Token(profile,true)!=snapshot.Selection||WorkSources.Identity(WorkSources.Read(profile,true))!=WorkSources.Identity(snapshot.Source))throw new IOException("The Personal tasks location changed. Your draft is still here; copy it before reopening the editor.");
+            if(!locked)throw new IOException(label+" is busy. Try saving again.");
+            if(WorkSources.Token(profile,list)!=snapshot.Selection||WorkSources.Identity(WorkSources.Read(profile,list))!=WorkSources.Identity(snapshot.Source))throw new IOException("The "+label+" location changed. Your draft is still here; copy it before reopening the editor.");
             // Deny writes and replacement while checking and saving this exact file.
             using(var stream=new FileStream(snapshot.Source.path,FileMode.Open,FileAccess.ReadWrite,FileShare.None)){
                 if(stream.Length>1048576)throw new IOException("The file changed outside Dashboard. Your draft is still here.");
@@ -75,8 +79,8 @@ internal static class PersonalTextStore {
             }
             string warning="";try{File.Delete(journal);}catch(IOException){warning=" A recovery record was retained.";}
             var cache=new WorkSourceCache{schemaVersion=1,source=WorkSources.Identity(snapshot.Source),text=text,hash=DashboardData.Hash(Utf8.GetBytes(text)),refreshedAt=DateTimeOffset.UtcNow.ToString("o")};
-            try{WorkSources.Store(profile,snapshot.Source,snapshot.Selection,cache,true);}catch(Exception){return "Saved to your Personal tasks file. Select Refresh to update the display."+warning;}
-            return "Personal tasks saved."+warning;
+            try{WorkSources.Store(profile,snapshot.Source,snapshot.Selection,cache,list);}catch(Exception){return "Saved to the task file. Select Refresh to update the display."+warning;}
+            return label+" saved."+warning;
         }finally{if(locked)mutex.ReleaseMutex();}
     }
 }
@@ -142,6 +146,24 @@ internal sealed class PersonalTaskDraft {
         if(Simple&&(ReadableTasks.Parse(replacement).Blocks.Count(b=>b.Kind=="task")!=1||ReadableTasks.Parse(replacement).Blocks.Any(b=>b.Kind=="heading")))throw new IOException("Use Edit document for additional numbered tasks or section headings.");
         return original.Remove(block.Start,block.Length).Insert(block.Start,replacement);
     }
+    internal static string Move(string document,int from,int to){
+        var blocks=ReadableTasks.Parse(document).Blocks;
+        var tasks=blocks.Where(block=>block.Kind=="task").ToList();
+        int first=Math.Min(from,to),last=Math.Max(from,to);
+        int start=tasks[first].Start,end=tasks[last].Start+tasks[last].Length;
+        if(blocks.Any(block=>block.Kind=="heading"&&block.Start>start&&block.Start<end))
+            throw new IOException("Use Edit document to move a task across headings.");
+
+        var slots=tasks.Skip(first).Take(last-first+1)
+            .Select(block=>document.Substring(block.Start,block.Length)).ToArray();
+        var contents=slots.Select(slot=>slot.TrimEnd('\r','\n')).ToList();
+        string moved=contents[from-first];
+        contents.RemoveAt(from-first);
+        contents.Insert(to-first,moved);
+        for(int index=0;index<slots.Length;index++)
+            contents[index]+=slots[index].Substring(slots[index].TrimEnd('\r','\n').Length);
+        return document.Substring(0,start)+String.Concat(contents)+document.Substring(end);
+    }
     internal static string Add(string document,string title,string summary,string notes){
         if(String.IsNullOrWhiteSpace(title)||title.Contains('\n')||title.Contains('\r'))throw new IOException("Enter a short title on one line.");
         var parsed=ReadableTasks.Parse(document);int number=1;
@@ -149,8 +171,9 @@ internal sealed class PersonalTaskDraft {
         string nl=Regex.Match(document,@"\r\n|\r|\n").Value;if(nl.Length==0)nl=Environment.NewLine;
         string task=number+". "+title.Trim()+nl+(String.IsNullOrWhiteSpace(summary)?"":"   "+Display(summary).Replace("\n",nl+"   ")+nl)+(String.IsNullOrWhiteSpace(notes)?"":nl+"   Notes:"+nl+"   "+Display(notes).Replace("\n",nl+"   ")+nl)+nl;
         if(ReadableTasks.Parse(task).Blocks.Count(b=>b.Kind=="task")!=1||ReadableTasks.Parse(task).Blocks.Any(b=>b.Kind=="heading"))throw new IOException("Use Edit document for additional numbered tasks or section headings.");
-        var first=parsed.Blocks.FirstOrDefault(b=>b.Kind=="task");int at=first==null?document.Length:first.Start;
-        if(at==document.Length&&document.Length>0&&!document.EndsWith(nl+nl))task=nl+nl+task;
+        var last=parsed.Blocks.LastOrDefault(block=>block.Kind=="task");
+        int at=last==null?document.Length:last.Start+last.Length;
+        if(at>0&&!document.Substring(0,at).EndsWith(nl+nl,StringComparison.Ordinal))task=(document.Substring(0,at).EndsWith(nl,StringComparison.Ordinal)?nl:nl+nl)+task;
         return document.Insert(at,task);
     }
 }

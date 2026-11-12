@@ -7,8 +7,8 @@
   <DockPanel x:Name="MenuBar" DockPanel.Dock="Top" LastChildFill="True">
    <StackPanel x:Name="FullWindowActions" DockPanel.Dock="Right" Orientation="Horizontal" Margin="0,2,16,2"/>
    <Menu x:Name="AppMenu" Padding="10,2" Height="40">
-   <MenuItem Header="_File"><MenuItem x:Name="RefreshMenu" Header="Refresh directory"/><Separator/><MenuItem x:Name="BackupMenu" Header="Back up configuration…"/><MenuItem x:Name="RestoreMenu" Header="Restore configuration…"/><Separator/><MenuItem x:Name="SettingsMenu" Header="Settings…"/><Separator/><MenuItem x:Name="HideMenu" Header="Hide to tray"/><MenuItem x:Name="ExitMenu" Header="Exit" InputGestureText="Ctrl+Q"/></MenuItem>
-   <MenuItem Header="_View"><MenuItem x:Name="DirectoryMenu" Header="Dashboard"/><MenuItem x:Name="WorkMenu" Header="Tasks"/><MenuItem x:Name="CompactMenu" Header="Compact view"/><MenuItem x:Name="ReportsMenu" Header="Needs your attention" Visibility="Collapsed"/><MenuItem x:Name="TopMenu" Header="Always on top" IsCheckable="True" Tag="pin-menu"/></MenuItem>
+   <MenuItem Header="_File"><MenuItem x:Name="BackupMenu" Header="Back up configuration…"/><MenuItem x:Name="RestoreMenu" Header="Restore configuration…"/><Separator/><MenuItem x:Name="SettingsMenu" Header="Settings…"/><Separator/><MenuItem x:Name="HideMenu" Header="Hide to tray"/><MenuItem x:Name="ExitMenu" Header="Exit" InputGestureText="Ctrl+Q"/></MenuItem>
+   <MenuItem Header="_View"><MenuItem x:Name="DirectoryMenu" Header="Dashboard"/><MenuItem x:Name="WorkMenu" Header="Tasks"/><MenuItem x:Name="RefreshMenu" Header="Refresh directory"/><Separator/><MenuItem x:Name="CompactMenu" Header="Compact view"/><MenuItem x:Name="TopMenu" Header="Always on top" IsCheckable="True" Tag="pin-menu"/></MenuItem>
    <MenuItem Header="_Help"><MenuItem x:Name="GuideMenu" Header="Help &amp; user guide" InputGestureText="F1"/><MenuItem x:Name="SetupMenu" Header="Run setup again…"/><MenuItem x:Name="ReportIssueMenu" Header="Report an issue…"/><Separator/><MenuItem x:Name="AboutMenu" Header="About Local Dashboard"/></MenuItem>
    </Menu>
   </DockPanel>
@@ -22,17 +22,36 @@
      <TextBlock Text="Your local workspace" Foreground="{DynamicResource Theme969696}" FontSize="9" Margin="0,0,0,18"/>
      <StackPanel x:Name="WorkspaceNavigation" Margin="0,0,0,12"/>
      <StackPanel x:Name="Navigation"/>
+     <StackPanel x:Name="TaskNavigation" Visibility="Collapsed"/>
     </StackPanel></DockPanel></ScrollViewer>
    </Border>
-   <DockPanel x:Name="MainContent" Grid.Column="1" Margin="30,24,30,20">
+   <DockPanel x:Name="MainContent" Grid.Column="1" Margin="30,24,6,20">
     <StackPanel DockPanel.Dock="Top">
      <DockPanel><WrapPanel x:Name="CompactToolbar" DockPanel.Dock="Right" Visibility="Collapsed"/>
       <TextBlock x:Name="Heading" FontSize="29" FontWeight="SemiBold" VerticalAlignment="Center"/>
      </DockPanel>
-     <DockPanel x:Name="SearchBar" Margin="0,12,0,14"><Button x:Name="OpenFolder" DockPanel.Dock="Right" Content="Open folder" Height="36" VerticalAlignment="Center" Margin="9,0,0,0"/><Grid><TextBox x:Name="Search" AutomationProperties.Name="Search all links" Height="36" VerticalContentAlignment="Center" Margin="0"/><TextBlock Text="Search" Margin="11,0" VerticalAlignment="Center" Foreground="{DynamicResource Muted}" IsHitTestVisible="False"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding Text,ElementName=Search}" Value=""><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></Grid></DockPanel>
+     <DockPanel x:Name="SearchBar" Margin="0,12,0,14"><Button x:Name="OpenFolder" DockPanel.Dock="Right" Content="Open folder" Height="36" VerticalAlignment="Center" Margin="9,0,0,0"/><Grid><TextBox x:Name="Search" AutomationProperties.Name="Search all links" Height="36" VerticalContentAlignment="Center" Margin="0"/><TextBlock Text="Search" Margin="11,0" VerticalAlignment="Center" Foreground="{DynamicResource Muted}" IsHitTestVisible="False"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding Text,ElementName=Search}" Value=""/><Condition Binding="{Binding IsKeyboardFocusWithin,ElementName=Search}" Value="False"/></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible"/></MultiDataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></Grid></DockPanel>
     </StackPanel>
-    <StackPanel x:Name="WorkNavigation" DockPanel.Dock="Top" Visibility="Collapsed"/>
-    <ScrollViewer x:Name="ContentScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel x:Name="Rows" Margin="0,0,14,0"/></ScrollViewer>
+    <WrapPanel x:Name="WorkNavigation" DockPanel.Dock="Top" Visibility="Collapsed"/>
+    <ScrollViewer x:Name="ContentScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+     <ScrollViewer.Template>
+      <ControlTemplate TargetType="ScrollViewer">
+       <Grid>
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <ScrollContentPresenter x:Name="PART_ScrollContentPresenter" Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"/>
+        <ScrollBar x:Name="PART_VerticalScrollBar" Grid.Column="1" Orientation="Vertical"
+                   Maximum="{TemplateBinding ScrollableHeight}" ViewportSize="{TemplateBinding ViewportHeight}"
+                   Value="{Binding VerticalOffset, RelativeSource={RelativeSource TemplatedParent}, Mode=OneWay}"/>
+       </Grid>
+       <ControlTemplate.Triggers>
+        <Trigger Property="ComputedVerticalScrollBarVisibility" Value="Collapsed">
+         <Setter TargetName="PART_VerticalScrollBar" Property="Visibility" Value="Hidden"/>
+        </Trigger>
+       </ControlTemplate.Triggers>
+      </ControlTemplate>
+     </ScrollViewer.Template>
+     <StackPanel x:Name="Rows" Margin="0,0,7,0"/>
+    </ScrollViewer>
    </DockPanel>
   </Grid>
  </DockPanel>

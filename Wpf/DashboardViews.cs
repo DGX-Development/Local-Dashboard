@@ -20,7 +20,7 @@ internal sealed partial class WpfDashboard
     System.Drawing.Icon trayIcon;
     ShellTaskbarBrand shellBrand;
     string lastReportView;
-    bool exitRequested,doneView; bool assistantWorkView=true;
+    bool exitRequested,doneView; int taskListView;
     bool compactView; Rect fullBounds; WindowState fullState;
     TaskbarRefreshQueue taskbarUpdates;
     Size compactSize=new Size(580,760);
@@ -36,7 +36,7 @@ internal sealed partial class WpfDashboard
         LoadFullBounds();
         string pinFile=StatePath("pins.json");
         if(File.Exists(pinFile))pins.UnionWith(AppData.Json.Deserialize<string[]>(File.ReadAllText(pinFile)));
-        shellBrand=new ShellTaskbarBrand(profile,fixture,System.Windows.Forms.Application.ExecutablePath);
+        shellBrand=new ShellTaskbarBrand(profile,fixture,System.Windows.Forms.Application.ExecutablePath,desktopReview);
         taskbarUpdates=new TaskbarRefreshQueue(
             action=>{window.Dispatcher.BeginInvoke(action,System.Windows.Threading.DispatcherPriority.ContextIdle);},
             ()=>refreshShell&&window.IsVisible&&window.ShowInTaskbar,
@@ -47,15 +47,31 @@ internal sealed partial class WpfDashboard
         Microsoft.Win32.UserPreferenceChangedEventHandler themeChanged=(s,e)=>window.Dispatcher.BeginInvoke(new Action(()=>{DashboardTheme.Apply(appearancePreviewTheme??preferenceStore.Value.theme);ApplyAccent(appearancePreviewTheme==null?SavedAccent():DashboardAccent.Selected);RefreshGlyphs();foreach(Window open in Application.Current.Windows)ThemeWindow(open,null);}));Microsoft.Win32.SystemEvents.UserPreferenceChanged+=themeChanged;window.Closed+=(s,e)=>Microsoft.Win32.SystemEvents.UserPreferenceChanged-=themeChanged;
         window.Activated+=(s,e)=>{
             QueueTaskbarRefresh();
-            if(section=="work")RefreshDisplayedTasks(false);
+            if(section=="work"&&activeTaskPrompt==null)RefreshDisplayedTasks(false);
         };
         DashboardTheme.Apply(preferenceStore.Value.theme);RefreshGlyphs();
         ApplyAccent(SavedAccent());
         if(refreshShell)UpdateTaskbarSafely(()=>shellBrand.RefreshShortcuts());
         tray=new System.Windows.Forms.NotifyIcon{Text="Local Dashboard",Icon=trayIcon};
         tray.DoubleClick+=(s,e)=>window.Dispatcher.BeginInvoke(new Action(Restore));
-        var menu=new System.Windows.Forms.ContextMenuStrip{BackColor=System.Drawing.Color.FromArgb(43,43,43),ForeColor=System.Drawing.Color.FromArgb(242,242,242),Font=new System.Drawing.Font("Segoe UI",10f),Padding=new System.Windows.Forms.Padding(6),Renderer=new DashboardMenuRenderer()};
-        menu.Items.Add("Show",null,(s,e)=>window.Dispatcher.BeginInvoke(new Action(Restore)));
+        Func<string,System.Drawing.Color> trayColor=key=>{
+            var color=DashboardTheme.Resolve("#"+key);
+            return System.Drawing.Color.FromArgb(color.A,color.R,color.G,color.B);
+        };
+        var menu=new System.Windows.Forms.ContextMenuStrip{ShowImageMargin=false,Font=new System.Drawing.Font("Segoe UI",10f),
+            Padding=new System.Windows.Forms.Padding(6),Renderer=new DashboardMenuRenderer(trayColor)};
+        menu.Opening+=(s,e)=>{
+            menu.BackColor=trayColor("2B2B2B");
+            menu.ForeColor=trayColor("F2F2F2");
+        };
+        menu.Items.Add("Open Dashboard",null,(s,e)=>window.Dispatcher.BeginInvoke(new Action(()=>{
+            Select(DashboardSection());
+            Restore();
+        })));
+        menu.Items.Add("Open Tasks",null,(s,e)=>window.Dispatcher.BeginInvoke(new Action(()=>{
+            Select("work");
+            Restore();
+        })));
         menu.Items.Add("Exit",null,(s,e)=>window.Dispatcher.BeginInvoke(new Action(Exit)));
         tray.ContextMenuStrip=menu;
         window.Closing+=(s,e)=>{
@@ -70,7 +86,10 @@ internal sealed partial class WpfDashboard
     }
 
     bool Compact {get{return compactView;}}
-    void Restore(){window.Show();window.WindowState=WindowState.Normal;tray.Visible=false;window.Activate();}
+    void Restore(){
+        if(activeTaskPrompt!=null&&activeTaskPrompt.IsVisible){activeTaskPrompt.Activate();return;}
+        window.Show();window.WindowState=WindowState.Normal;tray.Visible=false;window.Activate();
+    }
     void Hide(){tray.Visible=true;window.Hide();}
     void Exit(){exitRequested=true;try{window.Close();}finally{exitRequested=false;}}
     void ApplyAccent(System.Drawing.Color color)
@@ -122,7 +141,13 @@ internal sealed partial class WpfDashboard
     void Protect(Action action)
     {
         try{action();}
-        catch(Exception error){if(verifying)throw;MessageBox.Show(window,error.Message,"Local Dashboard",MessageBoxButton.OK,MessageBoxImage.Warning);}
+        catch(Exception error){if(verifying)throw;ShowNotice(window,"Local Dashboard",error.Message);}
+    }
+
+    static void NameControl(FrameworkElement control,string name,string id)
+    {
+        System.Windows.Automation.AutomationProperties.SetName(control,name);
+        System.Windows.Automation.AutomationProperties.SetAutomationId(control,id);
     }
 
     static Button ActionButton(string name,Action action)
@@ -135,26 +160,131 @@ internal sealed partial class WpfDashboard
     void RenderCompact(bool force){
         if(!force&&section!="reports")return;
         if(section=="reports"){RenderReportsInto(rows,force);return;}
-        rows.Children.Clear();WorkTabs();
-        heading.Text=agentUpdatesView?"Agent updates":"Tasks";
-        if(agentUpdatesView){var reports=new StackPanel();rows.Children.Add(reports);RenderReportsInto(reports,true);}else if(personalTasksView)RenderSavedTaskList(true);else if(assistantWorkView)RenderQuinnWork();else RenderChecklist();
+        var visible=VisibleTaskTabs();
+        if(!visible.Contains(taskListView)){taskListView=visible[0];ClearSearch();}
+        WorkTabs(visible);
+        heading.Margin=new Thickness(0);
+        heading.Text=taskListView<0?TaskLabel(false):TaskListLabel(taskListView);
+        RenderTaskItems();
+    }
+    void RenderTaskItems(){
+        rows.Children.Clear();
+        if(taskListView>=0)RenderSavedTaskList(taskListView);else RenderChecklist();
+    }
+    static Border DashboardCard(UIElement content,string tag=null){
+        var card=new Border{Tag=tag,Child=content,Padding=new Thickness(12,8,12,8),
+            Margin=new Thickness(0,0,0,2),CornerRadius=new CornerRadius(6),MinHeight=56};
+        card.SetResourceReference(Border.BackgroundProperty,"Surface");
+        return card;
+    }
+    void ClearSearch(){
+        clearingSearch=true;
+        try{search.Clear();}finally{clearingSearch=false;}
+    }
+    static bool MatchesTaskSearch(string query,params string[] fields){
+        return query.Length==0||fields.Any(field=>field!=null&&field.IndexOf(query,StringComparison.CurrentCultureIgnoreCase)>=0);
     }
     void RefreshDisplayedTasks(bool manual)
     {
-        if(!agentUpdatesView&&(assistantWorkView||personalTasksView))RefreshWorkSource(personalTasksView,manual);
+        if(taskListView>=0)RefreshWorkSource(taskListView,manual);
         else RenderCompact(true);
     }
-    void WorkTabs(){
-        var header=Find<StackPanel>("WorkNavigation");header.Children.Clear();header.Visibility=Visibility.Visible;
-        var modes=new WrapPanel{Margin=new Thickness(0,8,0,8)};
-        for(int i=0;i<3;i++){int mode=i;string label=i==1?PersonalTaskLabel():TaskLabel(i==0);var button=SourceAction(label,()=>{agentUpdatesView=false;assistantWorkView=mode==0;personalTasksView=mode==1;RenderCompact(true);if(mode<2)RefreshWorkSource(personalTasksView,false);Find<ScrollViewer>("ContentScroll").ScrollToHome();});
-            bool selected=!agentUpdatesView&&i==(personalTasksView?1:assistantWorkView?0:2);SetNavigationSelected(button,selected);modes.Children.Add(button);
+    bool HasTaskListFile(int list)
+    {
+        try{WorkSources.Read(profile,list);return true;}
+        catch(TaskSourceNotSelectedException){return false;}
+        catch(IOException){return true;}
+        catch(UnauthorizedAccessException){return true;}
+        catch(ArgumentException){return true;}
+        catch(InvalidOperationException){return true;}
+    }
+    Panel TaskNavigationPanel(){return Compact?(Panel)Find<WrapPanel>("WorkNavigation"):Find<StackPanel>("TaskNavigation");}
+    void WorkTabs(int[] visible){
+        var modes=TaskNavigationPanel();
+        Panel inactive=Compact?(Panel)Find<StackPanel>("TaskNavigation"):Find<WrapPanel>("WorkNavigation");
+        inactive.Children.Clear();
+        var existing=modes.Children.OfType<Button>().Where(button=>button.Tag is int).ToArray();
+        if(existing.Select(button=>(int)button.Tag).SequenceEqual(visible)&&existing.All(button=>
+            System.Windows.Automation.AutomationProperties.GetName(button)==((int)button.Tag<0?TaskLabel(false):TaskListLabel((int)button.Tag)))){
+            foreach(var button in existing)SetNavigationSelected(button,(int)button.Tag==taskListView);
+            return;
         }
-        modes.Children.Add(HeaderAction("Refresh","updates",()=>RefreshDisplayedTasks(true)));
-        header.Children.Add(modes);
-        int attention=AttentionCount();Find<MenuItem>("ReportsMenu").Visibility=attention>0?Visibility.Visible:Visibility.Collapsed;
-        if(attention>0){var notice=SourceAction("Needs your attention ("+attention+")",()=>{agentUpdatesView=true;RenderCompact(true);});SetNavigationSelected(notice,agentUpdatesView);rows.Children.Add(notice);}
-        header.Children.Add(WorkText(agentUpdatesView?"Progress saved by participating agents, including work ready for review or needing attention.":personalTasksView?"Your personal tasks. Edit them here.":assistantWorkView?"Work your agents maintain.":"Quick things to add and check off."));
+        modes.Children.Clear();
+        foreach(int list in visible)
+        {
+            string label=list<0?TaskLabel(false):TaskListLabel(list);
+            Action select=()=>{
+                taskListView=list;
+                ClearSearch();
+                RenderCompact(true);
+                if(list>=0)RefreshWorkSource(list,false);
+                Find<ScrollViewer>("ContentScroll").ScrollToHome();
+            };
+            var button=Compact?SourceAction(label,select):IconAction(label,list<0?"checklist":"document",select);
+            if(!Compact){
+                button.Margin=new Thickness(0,0,0,6);
+                ((TextBlock)((DockPanel)button.Content).Children[1]).TextTrimming=TextTrimming.CharacterEllipsis;
+            }
+            button.Tag=list;
+            NameControl(button,label,list<0?"checklists-tab":"task-list-"+(list+1)+"-tab");
+            SetNavigationSelected(button,taskListView==list);
+            modes.Children.Add(button);
+        }
+        var editActions=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right};
+        editActions.Children.Add(SidebarAction(ActionButton("Edit",()=>Protect(EditTaskWorkspace))));
+        modes.Children.Add(editActions);
+    }
+
+    static DockPanel NoticeContent(string title,string message,out WrapPanel actions)
+    {
+        var body=new DockPanel{Margin=new Thickness(24)};
+        var heading=new TextBlock{Text=title,FontSize=22,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,12)};
+        DockPanel.SetDock(heading,Dock.Top);body.Children.Add(heading);
+        actions=new WrapPanel{HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,12,0,0)};
+        DockPanel.SetDock(actions,Dock.Bottom);body.Children.Add(actions);
+        body.Children.Add(new ScrollViewer{Content=WorkText(message),VerticalScrollBarVisibility=ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled});
+        return body;
+    }
+
+    bool ShowNotice(Window owner,string title,string message,string confirm=null)
+    {
+        WrapPanel actions;
+        var body=NoticeContent(title,message,out actions);
+        var dialog=Dialog(title,500,250,body);
+        if(!nonWindowedVerification)dialog.Owner=owner;
+        bool accepted=false;
+        if(confirm!=null)actions.Children.Add(StandardAction(ActionButton(confirm,()=>{
+            accepted=true;
+            if(!nonWindowedVerification)dialog.DialogResult=true;
+        })));
+        var dismiss=StandardAction(new Button{Content=confirm==null?"OK":"Cancel",IsDefault=true,IsCancel=true});
+        actions.Children.Add(dismiss);
+        dialog.Loaded+=(s,e)=>dismiss.Focus();
+        presentDialog(dialog);
+        return accepted;
+    }
+
+    static void ShowStartupNotice(string message)
+    {
+        var app=Application.Current;
+        if(app==null){
+            app=new Application{ShutdownMode=ShutdownMode.OnExplicitShutdown};
+            app.Resources.MergedDictionaries.Add(Load<ResourceDictionary>("ForgePresentation.xaml"));
+            DashboardTheme.Apply("System");
+        }
+        WrapPanel actions;
+        var body=NoticeContent("Local Dashboard",message,out actions);
+        var dialog=new Window{Title="Local Dashboard",Width=500,Height=250,MinWidth=380,MinHeight=220,
+            WindowStartupLocation=WindowStartupLocation.CenterScreen,ShowInTaskbar=true,UseLayoutRounding=true,
+            FontFamily=new FontFamily("Segoe UI"),FontSize=14,Content=body};
+        dialog.SetResourceReference(Window.BackgroundProperty,"Background");
+        dialog.SetResourceReference(Window.ForegroundProperty,"ThemeF2F2F2");
+        var dismiss=StandardAction(new Button{Content="OK",IsDefault=true,IsCancel=true});
+        actions.Children.Add(dismiss);
+        dialog.SourceInitialized+=(s,e)=>{RemoveDialogMinimize(dialog);dialog.Icon=DialogTitleIcon(dialog);ThemeWindow(dialog,null);};
+        dialog.Loaded+=(s,e)=>dismiss.Focus();
+        ShowOwnedDialog(dialog);
     }
 
     Window Dialog(string title,double width,double height,UIElement content)
@@ -168,9 +298,20 @@ internal sealed partial class WpfDashboard
         surface.SetResourceReference(Border.BackgroundProperty,"Background");
         dialog.Content=surface;
         dialog.SetResourceReference(Window.ForegroundProperty,"ThemeF2F2F2");
-        dialog.SourceInitialized+=(s,e)=>{CenterDialog(dialog);dialog.Icon=DialogTitleIcon(dialog);};
+        dialog.SourceInitialized+=(s,e)=>{RemoveDialogMinimize(dialog);CenterDialog(dialog);dialog.Icon=DialogTitleIcon(dialog);};
         dialog.DpiChanged+=(s,e)=>dialog.Icon=DialogTitleIcon(dialog);
         return dialog;
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll",EntryPoint="GetWindowLongW")]
+    static extern int DialogWindowStyle(IntPtr handle,int index);
+    [System.Runtime.InteropServices.DllImport("user32.dll",EntryPoint="SetWindowLongW")]
+    static extern int SetDialogWindowStyle(IntPtr handle,int index,int style);
+    static void RemoveDialogMinimize(Window dialog)
+    {
+        const int styleIndex=-16, minimizeBox=0x00020000;
+        var handle=new WindowInteropHelper(dialog).Handle;
+        SetDialogWindowStyle(handle,styleIndex,DialogWindowStyle(handle,styleIndex)&~minimizeBox);
     }
 
     static ImageSource DialogTitleIcon(Window owner)
@@ -208,7 +349,7 @@ internal sealed partial class WpfDashboard
     {
         button.HorizontalContentAlignment=HorizontalAlignment.Center;
         button.VerticalContentAlignment=VerticalAlignment.Center;
-        button.Width=Double.NaN;button.MinWidth=72;
+        button.Width=Double.NaN;button.MinWidth=88;
         button.Height=36;
         button.VerticalAlignment=VerticalAlignment.Center;
         button.Padding=new Thickness(12,0,12,0);
@@ -217,7 +358,7 @@ internal sealed partial class WpfDashboard
     }
 
     static Button SidebarAction(Button button){
-        CompactAction(button);button.Height=30;button.Padding=new Thickness(8,3,8,3);button.Tag="sidebar-small-action";return button;
+        CompactAction(button);button.Height=30;button.MinWidth=72;button.Padding=new Thickness(8,3,8,3);button.Tag="sidebar-small-action";return button;
     }
     static readonly List<WeakReference> glyphImages=new List<WeakReference>();
     static readonly Dictionary<string,ImageSource> glyphSources=new Dictionary<string,ImageSource>();
@@ -244,7 +385,18 @@ internal sealed partial class WpfDashboard
         return button;
     }
 
-    Func<Window,bool?> presentDialog=dialog=>dialog.ShowDialog();
+    Func<Window,bool?> presentDialog=ShowOwnedDialog;
+    static bool? ShowOwnedDialog(Window dialog)
+    {
+        var owner=dialog.Owner;
+        var previous=Keyboard.FocusedElement as UIElement;
+        try{return dialog.ShowDialog();}
+        finally
+        {
+            if(owner!=null&&owner.IsActive&&previous!=null&&previous.IsVisible&&previous.IsEnabled)
+                Keyboard.Focus(previous);
+        }
+    }
 
     void ShowHelp(){ShowHelp(null,null);}
 
@@ -259,8 +411,7 @@ internal sealed partial class WpfDashboard
         var close=StandardAction(new Button{Content="Close",IsCancel=true,HorizontalAlignment=HorizontalAlignment.Right});
         var actions=new WrapPanel{HorizontalAlignment=HorizontalAlignment.Right};
         DockPanel.SetDock(actions,Dock.Bottom);panel.Children.Add(actions);
-        var copyPrompt=StandardAction(ActionButton("Copy setup prompt",()=>Protect(()=>Clipboard.SetText(DashboardHelp.AiSetupPrompt))));
-        actions.Children.Add(copyPrompt);actions.Children.Add(close);
+        actions.Children.Add(close);
         var topics=new ListBox{Width=260,Margin=new Thickness(0,0,18,0),
             ItemTemplate=(DataTemplate)System.Windows.Markup.XamlReader.Parse("<DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'><TextBlock Text='{Binding Title}' TextWrapping='Wrap'/></DataTemplate>")};
         DockPanel.SetDock(topics,Dock.Left);panel.Children.Add(topics);
@@ -268,12 +419,11 @@ internal sealed partial class WpfDashboard
         panel.Children.Add(new ScrollViewer{Content=article,VerticalScrollBarVisibility=ScrollBarVisibility.Auto});
         topics.SelectionChanged+=(s,e)=>{
             var topic=topics.SelectedItem as DashboardHelp.Topic;
-            article.Text=topic==null?"":topic.Title+"\n\n"+topic.Body;
-            copyPrompt.Visibility=topic!=null&&topic.Title==DashboardHelp.AiSetupTitle?Visibility.Visible:Visibility.Collapsed;
+            article.Text=topic==null?"No help topics match your search.":topic.Title+"\n\n"+topic.Body;
         };
         Action refresh=()=>{
             topics.ItemsSource=DashboardHelp.Topics.Where(t=>(t.Title+" "+t.Body).IndexOf(filter.Text,StringComparison.CurrentCultureIgnoreCase)>=0).ToList();
-            if(topics.Items.Count>0)topics.SelectedIndex=0;
+            if(topics.Items.Count>0)topics.SelectedIndex=0;else article.Text="No help topics match your search.";
         };
         filter.TextChanged+=(s,e)=>refresh();
         refresh();

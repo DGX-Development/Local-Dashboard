@@ -64,9 +64,6 @@ internal sealed partial class WpfDashboard {
         if(nonWindowedVerification)return;
         DashboardData.Atomic(StatePath("compact-window.json"),Encoding.UTF8.GetBytes(AppData.Json.Serialize(new CompactPlacement{left=window.Left,top=window.Top,width=window.Width,height=window.Height})));
     }
-    int AttentionCount(){
-        try{var feed=AgentFeed.Read(entries,ReportRoot);return feed==null?0:feed.tasks.Count(t=>AgentFeed.Fresh(feed,t,DateTimeOffset.UtcNow)&&(t.state=="Waiting for review"||t.state=="Waiting for user"||t.state=="Blocked"));}catch{return 0;}
-    }
     void VerifyClarityBehavior(){
         var blue=System.Drawing.Color.FromArgb(36,95,173);var mint=System.Drawing.Color.FromArgb(154,217,193);
         if(DashboardBrand.InnerColor(blue).R!=242||DashboardBrand.InnerColor(mint).R!=22)throw new Exception("Blue/mint contrast polarity is wrong.");
@@ -88,7 +85,7 @@ internal sealed partial class WpfDashboard {
         ChecklistLocation.Choose(scope,existing,ChecklistLocation.Token(ChecklistLocation.Config(scope)),ChecklistLocation.Token(destination),existingHash,entries);
         if(ChecklistLocation.Token(existing)!=existingHash||ChecklistLocation.Token(original)!=initial)throw new Exception("Selecting an existing checklist overwrote tasks.");
         bool blocked=false;try{ChecklistLocation.Choose(scope,destination,"stale",existingHash,ChecklistLocation.Token(destination),entries);}catch(IOException){blocked=true;}if(!blocked||ChecklistLocation.PathFor(scope)!=existing)throw new Exception("Stale checklist-location change was not blocked.");
-        SetCompact(true);double minimum=window.MinWidth;CaptureShell(profile,"clarity-compact-minimum.png",(int)minimum,760);var toolbar=Find<WrapPanel>("CompactToolbar");var ys=toolbar.Children.OfType<Button>().Where(b=>b.Visibility==Visibility.Visible).Select(b=>b.TranslatePoint(new Point(),toolbar).Y).ToArray();if(ys.Length!=3||ys.Max()-ys.Min()>1)throw new Exception("Compact actions wrap at minimum width.");SetCompact(false);
+        SetCompact(true);double minimum=window.MinWidth;CaptureShell(profile,"clarity-compact-minimum.png",(int)minimum,760);var toolbar=Find<WrapPanel>("CompactToolbar");var ys=toolbar.Children.OfType<Button>().Where(b=>b.Visibility==Visibility.Visible).Select(b=>b.TranslatePoint(new Point(),toolbar).Y).ToArray();if(ys.Length!=2||ys.Max()-ys.Min()>1)throw new Exception("Compact actions wrap at minimum width.");SetCompact(false);
         Console.WriteLine("Clarity behavior passed: rendered contrast choice, vector preview, lossless checklist copy, existing-checklist selection, automatic saves at selected location, backup routing, stale-choice rejection and nonwrapping compact toolbar.");
     }
 }

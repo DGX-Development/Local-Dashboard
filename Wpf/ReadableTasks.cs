@@ -52,7 +52,7 @@ internal static class ReadableTasks {
                 if(name=="status"){block.Status=value;block.Deferred|=IsDeferred(value);}else block.Next=value;continue;
             }
             if(!notes&&block.Summary==null&&(name==""||name=="task"||name=="description")){
-                block.Summary=value;block.Deferred|=IsDeferred(value);continue;
+                block.Summary=value;continue;
             }
             detail.Add(paragraph);
         }
