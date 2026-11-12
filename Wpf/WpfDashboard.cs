@@ -47,9 +47,9 @@ internal sealed partial class WpfDashboard
         Find<MenuItem>("SettingsMenu").Click+=(s,e)=>Protect(Settings);
         Find<MenuItem>("BackupMenu").Click+=(s,e)=>Protect(BackupConfiguration);
         Find<MenuItem>("RestoreMenu").Click+=(s,e)=>Protect(RestoreConfiguration);
-        Find<MenuItem>("HideMenu").Click+=(s,e)=>Hide();
         Find<MenuItem>("GuideMenu").Click+=(s,e)=>ShowHelp();
         Find<MenuItem>("SetupMenu").Click+=(s,e)=>Protect(ShowSetup);
+        Find<MenuItem>("CheckUpdatesMenu").Click+=CheckForUpdates;
         Find<MenuItem>("ReportIssueMenu").Click+=(s,e)=>ShowReportIssue();
         var topMenu=Find<MenuItem>("TopMenu");
         topMenu.Click+=(s,e)=>{window.Topmost=topMenu.IsChecked;UpdateHeaderActions();};
@@ -69,9 +69,9 @@ internal sealed partial class WpfDashboard
         });
         Find<MenuItem>("DirectoryMenu").Click+=(s,e)=>Select(DashboardSection());
         Find<MenuItem>("WorkMenu").Click+=(s,e)=>Select("work");
-        string[,] menuIcons={{"RefreshMenu","updates"},{"BackupMenu","config-backup"},{"RestoreMenu","config-restore"},{"SettingsMenu","settings"},{"HideMenu","hide"},{"ExitMenu","exit"},
+        string[,] menuIcons={{"RefreshMenu","updates"},{"BackupMenu","config-backup"},{"RestoreMenu","config-restore"},{"SettingsMenu","settings"},{"ExitMenu","exit"},
             {"DirectoryMenu","dashboard"},{"CompactMenu","compact"},{"WorkMenu","checklist"},{"TopMenu","pin"},
-            {"SetupMenu","setup"},{"GuideMenu","help"},{"ReportIssueMenu","report"},{"AboutMenu","info"}};
+            {"SetupMenu","setup"},{"GuideMenu","help"},{"CheckUpdatesMenu","updates"},{"ReportIssueMenu","report"},{"AboutMenu","info"}};
         for(int i=0;i<menuIcons.GetLength(0);i++)
             Find<MenuItem>(menuIcons[i,0]).Icon=GlyphImage(menuIcons[i,1]);
         Find<MenuItem>("AboutMenu").Click+=(s,e)=>ShowAbout();

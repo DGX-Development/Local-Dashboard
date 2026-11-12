@@ -4,12 +4,20 @@
 #ifndef OutputFolder
   #error Supply OutputFolder for the installer
 #endif
-#define AppVersion "2.2.5"
+#ifndef AppVersion
+  #define AppVersion "2.2.6"
+#endif
+#ifndef FileVersion
+  #define FileVersion "2.2.6.0"
+#endif
+#ifndef WizardLogo
+  #error Supply WizardLogo containing the generated header PNG
+#endif
 [Setup]
 AppId={{8C259AD3-7B64-4C7E-9D9A-ECD1E5543B61}
 AppName=Local Dashboard
 AppVersion={#AppVersion}
-VersionInfoVersion=2.2.5.0
+VersionInfoVersion={#FileVersion}
 AppPublisher=DGX Development
 AppPublisherURL=https://dgx.digitalguy.me/
 AppSupportURL=https://dgx.digitalguy.me/contact.html
@@ -20,10 +28,12 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0.19045
 OutputDir={#OutputFolder}
-OutputBaseFilename=LocalDashboard-2.2.5-Setup
+OutputBaseFilename=LocalDashboard-{#AppVersion}-Setup
 SetupIconFile={#PackageDir}\local-dashboard.ico
 UninstallDisplayIcon={app}\LocalDashboard.exe
-WizardStyle=modern
+WizardStyle=modern dynamic
+WizardSmallImageFile={#WizardLogo}
+WizardSmallImageFileDynamicDark={#WizardLogo}
 Compression=lzma2/fast
 SolidCompression=yes
 AppMutex=Local\DGX.LocalDashboard.Setup
@@ -55,4 +65,48 @@ begin
   Result := RegQueryDWordValue(HKLM, 'SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full', 'Release', Release) and (Release >= 528040);
   if not Result then
     SuppressibleMsgBox('Local Dashboard requires .NET Framework 4.8 or newer. Install it through Windows Update, then run Setup again.', mbError, MB_OK, IDOK);
+end;
+
+function GetFileAttributes(Path: String): LongInt;
+  external 'GetFileAttributesW@kernel32.dll stdcall';
+
+function SafePath(Path: String): Boolean;
+var
+  Attributes: LongInt;
+begin
+  Attributes := GetFileAttributes(Path);
+  Result := (Attributes <> -1) and ((Attributes and $400) = 0);
+end;
+
+procedure RemoveSettingsFile(Path: String);
+begin
+  if FileExists(Path) and SafePath(Path) then
+    if not DeleteFile(Path) then Log('Could not remove settings file: ' + Path);
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  AppFolder, LocalFolder: String;
+begin
+  if (CurUninstallStep <> usPostUninstall) or UninstallSilent then Exit;
+  AppFolder := ExpandConstant('{app}');
+  LocalFolder := AddBackslash(AppFolder) + '.local';
+  if not SafePath(AppFolder) then Exit;
+  if not (DirExists(LocalFolder) or FileExists(AddBackslash(AppFolder) + 'catalog.json')) then Exit;
+  if TaskDialogMsgBox('Keep Local Dashboard settings?',
+    'You can keep your settings, links, and favorites for a future reinstall. Task files and checklist data stay in place.',
+    mbConfirmation, MB_YESNO, ['Keep settings', 'Remove settings'], 0) <> IDNO then Exit;
+
+  RemoveSettingsFile(AddBackslash(AppFolder) + 'catalog.json');
+  if not SafePath(LocalFolder) then Exit;
+  LocalFolder := AddBackslash(LocalFolder);
+  RemoveSettingsFile(LocalFolder + 'window-preferences.json');
+  RemoveSettingsFile(LocalFolder + 'sidebar-layout.json');
+  RemoveSettingsFile(LocalFolder + 'pins.json');
+  RemoveSettingsFile(LocalFolder + 'work-list-source.json');
+  RemoveSettingsFile(LocalFolder + 'personal-tasks-source.json');
+  RemoveSettingsFile(LocalFolder + 'task-list-3-source.json');
+  RemoveSettingsFile(LocalFolder + 'current-work-source.json');
+  RemoveSettingsFile(LocalFolder + 'checklist-location.json');
+  RemoveSettingsFile(LocalFolder + 'setup.json');
 end;

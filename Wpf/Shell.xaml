@@ -7,9 +7,9 @@
   <DockPanel x:Name="MenuBar" DockPanel.Dock="Top" LastChildFill="True">
    <StackPanel x:Name="FullWindowActions" DockPanel.Dock="Right" Orientation="Horizontal" Margin="0,2,16,2"/>
    <Menu x:Name="AppMenu" Padding="10,2" Height="40">
-   <MenuItem Header="_File"><MenuItem x:Name="BackupMenu" Header="Back up configuration…"/><MenuItem x:Name="RestoreMenu" Header="Restore configuration…"/><Separator/><MenuItem x:Name="SettingsMenu" Header="Settings…"/><Separator/><MenuItem x:Name="HideMenu" Header="Hide to tray"/><MenuItem x:Name="ExitMenu" Header="Exit" InputGestureText="Ctrl+Q"/></MenuItem>
+   <MenuItem Header="_File"><MenuItem x:Name="BackupMenu" Header="Back up configuration…"/><MenuItem x:Name="RestoreMenu" Header="Restore configuration…"/><Separator/><MenuItem x:Name="SettingsMenu" Header="Settings…"/><Separator/><MenuItem x:Name="ExitMenu" Header="Exit" InputGestureText="Ctrl+Q"/></MenuItem>
    <MenuItem Header="_View"><MenuItem x:Name="DirectoryMenu" Header="Dashboard"/><MenuItem x:Name="WorkMenu" Header="Tasks"/><MenuItem x:Name="RefreshMenu" Header="Refresh directory"/><Separator/><MenuItem x:Name="CompactMenu" Header="Compact view"/><MenuItem x:Name="TopMenu" Header="Always on top" IsCheckable="True" Tag="pin-menu"/></MenuItem>
-   <MenuItem Header="_Help"><MenuItem x:Name="GuideMenu" Header="Help &amp; user guide" InputGestureText="F1"/><MenuItem x:Name="SetupMenu" Header="Run setup again…"/><MenuItem x:Name="ReportIssueMenu" Header="Report an issue…"/><Separator/><MenuItem x:Name="AboutMenu" Header="About Local Dashboard"/></MenuItem>
+   <MenuItem Header="_Help"><MenuItem x:Name="GuideMenu" Header="Help &amp; user guide" InputGestureText="F1"/><MenuItem x:Name="SetupMenu" Header="Run setup again…"/><MenuItem x:Name="CheckUpdatesMenu" Header="Check for updates"/><MenuItem x:Name="ReportIssueMenu" Header="Report an issue…"/><Separator/><MenuItem x:Name="AboutMenu" Header="About Local Dashboard"/></MenuItem>
    </Menu>
   </DockPanel>
 

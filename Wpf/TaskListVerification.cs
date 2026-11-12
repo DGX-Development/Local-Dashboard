@@ -157,7 +157,9 @@ internal sealed partial class WpfDashboard {
                 if(dialog.Title=="About Local Dashboard"){
                     var mark=Visuals<Image>(root).Single(i=>Equals(i.Tag,"publisher"));
                     if(mark.Width!=140)throw new Exception("Publisher mark size differs.");
-                    if(!Visuals<TextBlock>(root).Any(t=>t.Text=="Version "+typeof(WpfDashboard).Assembly.GetName().Version.ToString())||Visuals<TextBlock>(root).Any(t=>t.Text.Contains("Development build")))throw new Exception("Release About wording differs.");
+                    var version=typeof(WpfDashboard).Assembly.GetName().Version;
+                    string displayedVersion=version.Revision==0?version.ToString(3):version.ToString(4);
+                    if(!Visuals<TextBlock>(root).Any(t=>t.Text=="Version "+displayedVersion)||Visuals<TextBlock>(root).Any(t=>t.Text.Contains("Development build")))throw new Exception("Release About wording differs.");
                 }
                 if(dialog.Title=="Local Dashboard settings"){
                     foreach(var page in new[]{"Tasks","Appearance"}){

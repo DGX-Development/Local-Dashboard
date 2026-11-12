@@ -1,4 +1,4 @@
-LOCAL DASHBOARD 2.2.5
+LOCAL DASHBOARD
 
 Close any existing Local Dashboard using File > Exit before installing.
 
@@ -20,8 +20,7 @@ screen, or use File > Restore configuration.
 Review which restored copies Dashboard will use before confirming. Keep your original backup.
 
 The catalog and .local settings/checklist folder live beside the executable.
-Upgrades preserve existing catalog.json and .local data. Uninstall removes the
-program but retains this data. Linked task documents stay in their own locations.
+Upgrades preserve your settings and data. When uninstalling, choose whether to keep or remove settings, links and favorites. Keep is the default. Task files and checklist data stay in place.
 Back up configuration before manually editing or moving the application folder.
 
 Each task list can add and edit tasks in its selected text file. Checklists

@@ -39,7 +39,7 @@ internal sealed partial class WpfDashboard {
         var appearance=new StackPanel{Margin=new Thickness(0,0,14,0)};
         appearance.Children.Add(new TextBlock{Text="Appearance",FontSize=22,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,12)});
         appearance.Children.Add(WorkText("Changes preview immediately. Save keeps them; Cancel restores your saved appearance."));
-        var theme=new ComboBox{ItemsSource=new[]{"System","Light","Dark"},SelectedItem=current.theme??"Dark"};System.Windows.Automation.AutomationProperties.SetName(theme,"Appearance theme");appearance.Children.Add(theme);
+        var theme=new ComboBox{ItemsSource=new[]{"System","Light","Dark"},SelectedItem=current.theme??"Dark",Width=240,HorizontalAlignment=HorizontalAlignment.Left};System.Windows.Automation.AutomationProperties.SetName(theme,"Appearance theme");appearance.Children.Add(theme);
         var previewCard=new StackPanel{Margin=new Thickness(18,12,18,12)};
         previewCard.Children.Add(WorkText("Appearance preview",true));
         var sample=new DockPanel{LastChildFill=false};var sampleIcon=new Image{Source=BrandVector(original),Width=32,Height=32,Margin=new Thickness(0,0,12,0)};sample.Children.Add(sampleIcon);
@@ -134,9 +134,44 @@ internal sealed partial class WpfDashboard {
     void ShowAbout(){
         var root=new DockPanel{Margin=new Thickness(28)};var close=StandardAction(new Button{Content="Close",IsCancel=true,IsDefault=true,HorizontalAlignment=HorizontalAlignment.Right});close.Margin=new Thickness(0,18,0,0);DockPanel.SetDock(close,Dock.Bottom);root.Children.Add(close);
         var body=new StackPanel();root.Children.Add(new ScrollViewer{Content=body,VerticalScrollBarVisibility=ScrollBarVisibility.Auto});
-        var header=new DockPanel{Margin=new Thickness(0,0,0,24)};header.Children.Add(new Image{Source=window.Icon,Width=64,Height=64,Margin=new Thickness(0,0,18,0)});var identity=new StackPanel{VerticalAlignment=VerticalAlignment.Center};identity.Children.Add(new TextBlock{Text="Local Dashboard",FontSize=25,FontWeight=FontWeights.SemiBold});identity.Children.Add(WorkText("Version "+typeof(WpfDashboard).Assembly.GetName().Version.ToString()));header.Children.Add(identity);body.Children.Add(header);
+        var header=new DockPanel{Margin=new Thickness(0,0,0,24)};header.Children.Add(new Image{Source=window.Icon,Width=64,Height=64,Margin=new Thickness(0,0,18,0)});var identity=new StackPanel{VerticalAlignment=VerticalAlignment.Center};identity.Children.Add(new TextBlock{Text="Local Dashboard",FontSize=25,FontWeight=FontWeights.SemiBold});identity.Children.Add(WorkText("Version "+DisplayVersion()));header.Children.Add(identity);body.Children.Add(header);
         var card=new StackPanel{Margin=new Thickness(18)};card.Children.Add(WorkText("Your projects and tasks, in one place. Open folders, documents and websites, and keep track of your tasks."));card.Children.Add(new TextBlock{Text="Developed by",Margin=new Thickness(0,16,0,4),FontWeight=FontWeights.SemiBold});card.Children.Add(PublisherLink());card.Children.Add(WebsiteLink("dgx.digitalguy.me",PublisherWebsite,false));var frame=new Border{CornerRadius=new CornerRadius(9),Child=card};frame.SetResourceReference(Border.BackgroundProperty,"Surface");body.Children.Add(frame);
-        body.Children.Add(WorkText("Project and website icons belong to their respective owners. Interface icons: Microsoft Fluent System Icons (MIT)."));body.Children.Add(SourceAction("View icon license",ShowIconLicense));presentDialog(Dialog("About Local Dashboard",560,650,root));
+        var credit=WorkText("Project and website icons belong to their respective owners. Interface icons: Microsoft Fluent System Icons (MIT).");
+        credit.Margin=new Thickness(0,8,0,4);body.Children.Add(credit);
+        var license=SourceAction("View icon license",ShowIconLicense);license.Margin=new Thickness(0,8,0,0);body.Children.Add(license);
+        var dialog=Dialog("About Local Dashboard",560,520,root);
+        ((UIElement)dialog.Content).Measure(new Size(544,Double.PositiveInfinity));
+        dialog.Height=Math.Ceiling(((UIElement)dialog.Content).DesiredSize.Height)+52;
+        presentDialog(dialog);
+    }
+    static string DisplayVersion(){
+        var version=typeof(WpfDashboard).Assembly.GetName().Version;
+        return version.ToString(version.Revision==0?3:4);
+    }
+    async void CheckForUpdates(object sender,RoutedEventArgs e){
+        var command=(MenuItem)sender;
+        command.IsEnabled=false;
+        const string releases="https://github.com/DGX-Development/Local-Dashboard/releases";
+        try{
+            using(var client=new System.Net.Http.HttpClient{Timeout=TimeSpan.FromSeconds(10)}){
+                client.DefaultRequestHeaders.UserAgent.ParseAdd("LocalDashboard/"+DisplayVersion());
+                string json=await client.GetStringAsync("https://api.github.com/repos/DGX-Development/Local-Dashboard/releases/latest");
+                var release=AppData.Json.DeserializeObject(json) as Dictionary<string,object>;
+                object value;
+                string tag=release!=null&&release.TryGetValue("tag_name",out value)?value as string:null;
+                Version latest;
+                if(String.IsNullOrEmpty(tag)||!System.Text.RegularExpressions.Regex.IsMatch(tag,@"^v?[0-9]+\.[0-9]+\.[0-9]+$")||
+                    !Version.TryParse(tag.TrimStart('v'),out latest))throw new IOException("Unexpected release version.");
+                var installed=typeof(WpfDashboard).Assembly.GetName().Version;
+                var stableBase=new Version(installed.Major,installed.Minor,installed.Build);
+                if(latest>stableBase){
+                    if(DataConfirmation("Check for updates","Update available","Local Dashboard "+latest+" is available.","View release"))
+                        Protect(()=>System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(releases+"/tag/"+Uri.EscapeDataString(tag)){UseShellExecute=true}));
+                }else DataConfirmation("Check for updates","You're up to date","Latest stable version: "+latest+".","Close");
+            }
+        }catch(Exception){
+            DataConfirmation("Check for updates","Couldn't check for updates","GitHub's release information is unavailable. Try again in a moment.","Close");
+        }finally{command.IsEnabled=true;}
     }
     static string ComposeIssueReport(string version,string doing,string expected,string happened){
         return "Local Dashboard "+version+"\n\nWhat were you doing?\n"+doing+"\n\nWhat did you expect to happen?\n"+expected+"\n\nWhat happened instead?\n"+happened;
@@ -146,7 +181,7 @@ internal sealed partial class WpfDashboard {
         var close=StandardAction(new Button{Content="Close",IsCancel=true,HorizontalAlignment=HorizontalAlignment.Right});DockPanel.SetDock(close,Dock.Bottom);root.Children.Add(close);
         var body=new StackPanel();body.Children.Add(WorkText("Report an issue",true));
         body.Children.Add(WorkText("Describe the problem, then copy your report into a message on the DGX Development contact page. Nothing is sent automatically."));
-        string version=typeof(WpfDashboard).Assembly.GetName().Version.ToString();
+        string version=DisplayVersion();
         body.Children.Add(WorkText("Local Dashboard version: "+version));
         var answers=new List<TextBox>();
         foreach(string prompt in new[]{"What were you doing?","What did you expect to happen?","What happened instead?"}){

@@ -1,4 +1,4 @@
-param([Parameter(Mandatory)][string]$Compiler,[string]$OutputDirectory=(Join-Path $PSScriptRoot '.dev\Review\Dashboard21\Navigation219\Release224'))
+param([Parameter(Mandatory)][string]$Compiler,[string]$Version='2.2.6',[string]$OutputDirectory=(Join-Path $PSScriptRoot '.dev\Review\Dashboard21\Navigation219\Release226'))
 $ErrorActionPreference='Stop'
 $root=$PSScriptRoot
 $output=[IO.Path]::GetFullPath($OutputDirectory)
@@ -24,14 +24,15 @@ Copy-Item -LiteralPath (Join-Path $root 'Packaging\Start Here.txt') -Destination
 $expected=@('Start Here.txt','Examples\Example document.txt','Examples\Example project\Read me.txt','LocalDashboard.exe','local-dashboard.ico','catalog.json','INSTALL.txt','Fluent-LICENSE.txt','Fluent-NOTICE.txt')
 if(@(Compare-Object $expected @(Get-ChildItem -LiteralPath $payload -File -Recurse | ForEach-Object {$_.FullName.Substring($payload.Length+1)})).Count){throw 'Unexpected payload file.'}
 if((Get-Content -LiteralPath (Join-Path $payload 'catalog.json') -Raw) -cne (Get-Content -LiteralPath (Join-Path $root 'catalog.example.json') -Raw)){throw 'Starter catalog changed.'}
-if((Get-Item -LiteralPath (Join-Path $payload 'LocalDashboard.exe')).VersionInfo.FileVersion -ne '2.2.5.0'){throw 'Unexpected application version.'}
-& $Compiler ('/DPackageDir='+$payload) ('/DOutputFolder='+$output) (Join-Path $root 'Packaging\LocalDashboard.iss')
+$binaryVersion=(Get-Item -LiteralPath (Join-Path $payload 'LocalDashboard.exe')).VersionInfo.FileVersion
+if($Version -ne $binaryVersion -and "$Version.0" -ne $binaryVersion){throw 'Unexpected application version.'}
+& $Compiler ('/DAppVersion='+$Version) ('/DFileVersion='+$binaryVersion) ('/DWizardLogo='+(Join-Path $build 'local-dashboard-wizard.png')) ('/DPackageDir='+$payload) ('/DOutputFolder='+$output) (Join-Path $root 'Packaging\LocalDashboard.iss')
 if($LASTEXITCODE -ne 0){throw 'Installer compilation failed.'}
-$zip=Join-Path $output 'LocalDashboard-2.2.5-Portable.zip'
+$zip=Join-Path $output "LocalDashboard-$Version-Portable.zip"
 Compress-Archive -LiteralPath $payload -DestinationPath $zip
-$names=@('LocalDashboard-2.2.5-Setup.exe','LocalDashboard-2.2.5-Portable.zip')
+$names=@("LocalDashboard-$Version-Setup.exe","LocalDashboard-$Version-Portable.zip")
 $lines=foreach($name in $names){((Get-FileHash -LiteralPath (Join-Path $output $name)).Hash.ToLowerInvariant())+'  '+$name}
 [IO.File]::WriteAllLines((Join-Path $output 'SHA256SUMS.txt'),$lines,[Text.UTF8Encoding]::new($false))
 $manifest=Get-ChildItem -LiteralPath $payload -File -Recurse | ForEach-Object {[ordered]@{file=$_.FullName.Substring($payload.Length+1);bytes=$_.Length;sha256=(Get-FileHash -LiteralPath $_.FullName).Hash}}
 $manifest | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $output 'payload-manifest.json')
-Write-Output (Join-Path $output 'LocalDashboard-2.2.5-Setup.exe')
+Write-Output (Join-Path $output "LocalDashboard-$Version-Setup.exe")

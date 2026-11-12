@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.2.6 - 2026-11-12
+
+- Setup follows the Windows light or dark theme and displays the Local Dashboard icon in the wizard header.
+- Uninstall offers Keep settings or Remove settings, with Keep settings as the default.
+- Check for updates from Help to find the latest stable release on GitHub.
+- About uses a shorter layout, Appearance has a compact theme selector, and tray behavior is configured in Settings.
+
 ## 2.2.5 - 2026-11-12
 
 - Manage up to three editable task lists and Checklists in a shared Tasks workspace. Search within the selected list and use the sidebar Edit action to manage lists and items.

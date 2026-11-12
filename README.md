@@ -4,15 +4,15 @@
 
 Local Dashboard is a Windows app for opening your project folders, documents and websites, and keeping task lists together in one place.
 
-**Status:** In active development. The latest packaged release is **2.2.5**.
+**Status:** In active development. The latest packaged release is **2.2.6**.
 
-## Install 2.2.5
+## Install 2.2.6
 
-Download the installer or portable ZIP from the [v2.2.5 release](https://github.com/DGX-Development/Local-Dashboard/releases/tag/v2.2.5).
+See the [v2.2.6 release](https://github.com/DGX-Development/Local-Dashboard/releases/tag/v2.2.6).
 
-- [Windows x64 installer](https://github.com/DGX-Development/Local-Dashboard/releases/download/v2.2.5/LocalDashboard-2.2.5-Setup.exe)
-- [Portable ZIP](https://github.com/DGX-Development/Local-Dashboard/releases/download/v2.2.5/LocalDashboard-2.2.5-Portable.zip)
-- [SHA-256 checksums](https://github.com/DGX-Development/Local-Dashboard/releases/download/v2.2.5/SHA256SUMS.txt)
+- [Windows x64 installer](https://github.com/DGX-Development/Local-Dashboard/releases/download/v2.2.6/LocalDashboard-2.2.6-Setup.exe)
+- [Portable ZIP](https://github.com/DGX-Development/Local-Dashboard/releases/download/v2.2.6/LocalDashboard-2.2.6-Portable.zip)
+- [SHA-256 checksums](https://github.com/DGX-Development/Local-Dashboard/releases/download/v2.2.6/SHA256SUMS.txt)
 
 1. Close any older Dashboard copy using **File > Exit**, including copies in the system tray.
 2. Run Setup. It installs for your Windows account under `%LOCALAPPDATA%\Programs\Local Dashboard` by default. A desktop shortcut is optional.
@@ -28,11 +28,11 @@ A fresh install shows **Projects**, **Documents**, **Websites** and **All links*
 
 ## Screenshots
 
-Local Dashboard 2.2.1 showing the same sample workspace in light and dark appearance.
+Local Dashboard 2.2.6 showing the same sample workspace in light and dark appearance.
 
 | Light appearance | Dark appearance |
 | --- | --- |
-| [![Local Dashboard in light appearance](Artwork/Exports/Web/local-dashboard-2.2.1-light-1280x860.png)](Artwork/Exports/Web/local-dashboard-2.2.1-light-1280x860.png) | [![Local Dashboard in dark appearance](Artwork/Exports/Web/local-dashboard-2.2.1-dark-1280x860.png)](Artwork/Exports/Web/local-dashboard-2.2.1-dark-1280x860.png) |
+| [![Local Dashboard in light appearance](Artwork/Exports/Web/local-dashboard-2.2.6-light-1280x860.png)](Artwork/Exports/Web/local-dashboard-2.2.6-light-1280x860.png) | [![Local Dashboard in dark appearance](Artwork/Exports/Web/local-dashboard-2.2.6-dark-1280x860.png)](Artwork/Exports/Web/local-dashboard-2.2.6-dark-1280x860.png) |
 
 ## What it does
 
@@ -43,13 +43,13 @@ Local Dashboard 2.2.1 showing the same sample workspace in light and dark appear
 - Provides compact view, on-top behavior, light/dark appearance, accent colors and window preferences.
 - Includes configuration backup/restore, setup, built-in Help and a copyable issue report.
 
-Choose an existing file or create a task file in **Settings > Tasks**. Newly selected files load after **Save**. Task views reload on entry. Use **Refresh** beside Search to reread the current list. Files in locally synchronized folders work like other local files. There is no automatic update service.
+Choose an existing file or create a task file in **Settings > Tasks**. Newly selected files load after **Save**. Task views reload on entry. Use **Refresh** beside Search to reread the current list. Files in locally synchronized folders work like other local files. Use **Help > Check for updates** to find the latest stable release on GitHub.
 
 **Edit Dashboard** opens to the category you are viewing. Add, edit, remove or reorder categories and links in one editor. Drag a row by its grip, or focus the grip and press **Ctrl+Up** or **Ctrl+Down**. Save applies the draft. Use the built-in icon picker or browse for a local image. Show or hide **All links** in **Settings > Appearance**.
 
 ## Your data
 
-The installed or portable app keeps its catalog in `catalog.json` and its settings and default checklist in `.local/`, beside the executable. Linked task files stay in their selected locations. The installer preserves an existing catalog and `.local/` during upgrades and uninstall.
+The installed or portable app keeps its catalog in `catalog.json` and its settings and default checklist in `.local/`, beside the executable. Linked task files stay in their selected locations. Upgrades keep your settings and data. Uninstall lets you keep or remove settings, links and favorites. Task files and checklist data stay in place.
 
 Configuration backups include readable custom icon files and available copies of task lists. Restore reconnects included icons and lets you choose which restored task-list copies to use. Existing files are preserved. Keep a backup before moving or manually changing data.
 
@@ -63,13 +63,13 @@ The current application is WPF. Use Windows PowerShell or PowerShell 7, the Wind
 & '.\Build-Installer.ps1' -Compiler 'C:\path\to\Inno Setup\ISCC.exe'
 ```
 
-The script builds the app, creates an exact eight-file payload with a generic starter catalog, and produces Setup, a portable ZIP and checksums under `.dev\Review\Dashboard21\Navigation219\Release224`. It refuses to overwrite an existing payload; use `-OutputDirectory` with a fresh directory under `.dev\Review` for another build. Local profiles, task files and private development notes are excluded.
+The script builds the app, creates an exact nine-file payload with a generic starter catalog, and produces Setup, a portable ZIP and checksums under `.dev\Review\Dashboard21\Navigation219\Release226`. It refuses to overwrite an existing payload; use `-OutputDirectory` with a fresh directory under `.dev\Review` for another build. Local profiles, task files and private development notes are excluded.
 
-`Wpf/Build Wpf.ps1` is the explicit-source application build. `Build Dashboard.ps1`, the browser assets and Node scripts remain legacy sources; they are not the 2.2.5 release build path.
+`Wpf/Build Wpf.ps1` is the explicit-source application build. `Build Dashboard.ps1`, the browser assets and Node scripts remain legacy sources; they are not the 2.2.6 release build path.
 
 ## Verification and known limits
 
-The 2.2.5 offscreen checks cover setup, dashboard editing, task refresh, custom icon backup and restore, and live website icon lookup. The light and dark screenshots above show the 2.2.1 baseline. Live pointer dragging and a full accessibility and DPI review remain pending.
+The 2.2.6 offscreen checks cover setup, dashboard editing, task refresh, custom icon backup and restore, and live website icon lookup. Live pointer dragging and a full accessibility and DPI review remain pending.
 
 See [CHANGELOG.md](CHANGELOG.md) for the release changes. Use **Help > Help and user guide** for everyday use, or **Help > Report an issue** to copy a report for [DGX Development support](https://dgx.digitalguy.me/contact.html).
 
