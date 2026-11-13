@@ -13,6 +13,17 @@ internal sealed class DashboardButton:Button {
     protected override void OnLostFocus(EventArgs e){Invalidate();base.OnLostFocus(e);}
     protected override void OnPaint(PaintEventArgs e){e.Graphics.Clear(Parent==null?DashboardForm.Background:Parent.BackColor);e.Graphics.SmoothingMode=SmoothingMode.AntiAlias;Color fill=IsChecked?Color.FromArgb(69,69,69):pressed?ControlPaint.Dark(BackColor,.12f):hover?ControlPaint.Light(BackColor,.08f):BackColor;using(var path=DashboardMenuRenderer.Round(new RectangleF(.5f,.5f,Width-1,Height-1),7))using(var brush=new SolidBrush(fill))e.Graphics.FillPath(brush,path);int left=!ShowGlyph||Image==null?(Text.Length==1?0:8):36;if(ShowGlyph&&Image!=null){e.Graphics.InterpolationMode=InterpolationMode.HighQualityBicubic;e.Graphics.DrawImage(Image,new Rectangle(10,(Height-16)/2,16,16));}var text=new Rectangle(left,0,Math.Max(1,Width-left-(Text.Length==1?0:8)-(IsChecked?20:0)),Height);TextRenderer.DrawText(e.Graphics,Text,Font,text,Enabled?ForeColor:DashboardForm.Muted,TextFormatFlags.NoPrefix|TextFormatFlags.VerticalCenter|TextFormatFlags.SingleLine|TextFormatFlags.EndEllipsis|(TextAlign==ContentAlignment.MiddleLeft?TextFormatFlags.Left:TextFormatFlags.HorizontalCenter));if(IsChecked){using(var check=new Pen(DashboardForm.Accent,1.7f){StartCap=LineCap.Round,EndCap=LineCap.Round,LineJoin=LineJoin.Round})e.Graphics.DrawLines(check,new[]{new PointF(Width-19,Height/2f),new PointF(Width-15,Height/2f+4),new PointF(Width-9,Height/2f-4)});}if(Focused&&ShowFocusCues)ControlPaint.DrawFocusRectangle(e.Graphics,new Rectangle(3,3,Math.Max(1,Width-7),Math.Max(1,Height-7)),DashboardForm.Accent,fill);}
 }
+internal sealed class DashboardTrayMenu:ContextMenuStrip {
+    protected override void OnSizeChanged(EventArgs e){
+        base.OnSizeChanged(e);
+        var previous=Region;
+        if(Width>0&&Height>0){
+            float radius=Math.Min(10f*DeviceDpi/96f,Math.Min(Width,Height)/2f);
+            using(var shape=DashboardMenuRenderer.Round(new RectangleF(0,0,Width,Height),radius))Region=new Region(shape);
+        }else Region=null;
+        if(previous!=null)previous.Dispose();
+    }
+}
 internal sealed class DashboardMenuRenderer:ToolStripProfessionalRenderer {
     static readonly Dictionary<string,Bitmap> glyphs=new Dictionary<string,Bitmap>();
     readonly Func<string,Color> palette;
@@ -21,9 +32,18 @@ internal sealed class DashboardMenuRenderer:ToolStripProfessionalRenderer {
     internal static GraphicsPath Round(RectangleF r,float radius){var p=new GraphicsPath();float d=radius*2;p.AddArc(r.X,r.Y,d,d,180,90);p.AddArc(r.Right-d,r.Y,d,d,270,90);p.AddArc(r.Right-d,r.Bottom-d,d,d,0,90);p.AddArc(r.X,r.Bottom-d,d,d,90,90);p.CloseFigure();return p;}
     protected override void OnRenderToolStripBackground(ToolStripRenderEventArgs e){e.Graphics.Clear(e.ToolStrip.BackColor);}
     protected override void OnRenderImageMargin(ToolStripRenderEventArgs e){}
-    protected override void OnRenderToolStripBorder(ToolStripRenderEventArgs e){if(e.ToolStrip is ToolStripDropDown)using(var pen=new Pen(MenuColor("454545",DashboardForm.Border)))e.Graphics.DrawRectangle(pen,0,0,e.ToolStrip.Width-1,e.ToolStrip.Height-1);}
+    protected override void OnRenderToolStripBorder(ToolStripRenderEventArgs e){
+        if(!(e.ToolStrip is ToolStripDropDown))return;
+        using(var pen=new Pen(MenuColor("454545",DashboardForm.Border))){
+            var bounds=new RectangleF(.5f,.5f,e.ToolStrip.Width-1,e.ToolStrip.Height-1);
+            if(e.ToolStrip is DashboardTrayMenu){
+                float radius=Math.Min(10f*e.ToolStrip.DeviceDpi/96f,Math.Min(bounds.Width,bounds.Height)/2f);
+                if(radius>0)using(var shape=Round(bounds,radius))e.Graphics.DrawPath(pen,shape);
+            }else e.Graphics.DrawRectangle(pen,0,0,e.ToolStrip.Width-1,e.ToolStrip.Height-1);
+        }
+    }
     protected override void OnRenderMenuItemBackground(ToolStripItemRenderEventArgs e){if(e.Item.Selected||e.Item.Pressed){e.Graphics.SmoothingMode=SmoothingMode.AntiAlias;using(var brush=new SolidBrush(SystemInformation.HighContrast?SystemColors.Highlight:MenuColor("383838",Color.FromArgb(56,56,56))))using(var shape=Round(new RectangleF(2,1,e.Item.Width-4,e.Item.Height-2),6))e.Graphics.FillPath(brush,shape);}}
-    protected override void OnRenderSeparator(ToolStripSeparatorRenderEventArgs e){using(var pen=new Pen(DashboardForm.Border))e.Graphics.DrawLine(pen,10,e.Item.Height/2,e.Item.Width-10,e.Item.Height/2);}
+    protected override void OnRenderSeparator(ToolStripSeparatorRenderEventArgs e){using(var pen=new Pen(MenuColor("454545",DashboardForm.Border)))e.Graphics.DrawLine(pen,10,e.Item.Height/2,e.Item.Width-10,e.Item.Height/2);}
     protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e){e.TextColor=SystemInformation.HighContrast&&e.Item.Selected?SystemColors.HighlightText:MenuColor("F2F2F2",DashboardForm.Ink);if(e.ToolStrip is ToolStripDropDown){var menu=e.ToolStrip as ContextMenuStrip;int inset=menu!=null&&!menu.ShowImageMargin?12:46;e.TextRectangle=new Rectangle(inset,0,Math.Max(1,e.Item.Width-inset-12),e.Item.Height);}else e.TextRectangle=new Rectangle(e.TextRectangle.X,0,e.TextRectangle.Width,e.Item.Height);e.TextFormat|=TextFormatFlags.VerticalCenter|TextFormatFlags.SingleLine;base.OnRenderItemText(e);}
     protected override void OnRenderItemCheck(ToolStripItemImageRenderEventArgs e){float y=e.Item.Height/2f;using(var pen=new Pen(SystemInformation.HighContrast?(e.Item.Selected?SystemColors.HighlightText:SystemColors.MenuText):DashboardForm.Accent,1.7f){StartCap=LineCap.Round,EndCap=LineCap.Round,LineJoin=LineJoin.Round}){e.Graphics.SmoothingMode=SmoothingMode.AntiAlias;e.Graphics.DrawLines(pen,new[]{new PointF(16,y),new PointF(20,y+4),new PointF(27,y-4)});}}
     protected override void OnRenderItemImage(ToolStripItemImageRenderEventArgs e){if(e.Image==null||(e.Item is ToolStripMenuItem&&((ToolStripMenuItem)e.Item).Checked))return;e.Graphics.InterpolationMode=InterpolationMode.HighQualityBicubic;e.Graphics.DrawImage(e.Image,new Rectangle(14,(e.Item.Height-16)/2,16,16));}

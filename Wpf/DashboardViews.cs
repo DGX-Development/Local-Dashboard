@@ -58,21 +58,29 @@ internal sealed partial class WpfDashboard
             var color=DashboardTheme.Resolve("#"+key);
             return System.Drawing.Color.FromArgb(color.A,color.R,color.G,color.B);
         };
-        var menu=new System.Windows.Forms.ContextMenuStrip{ShowImageMargin=false,Font=new System.Drawing.Font("Segoe UI",10f),
-            Padding=new System.Windows.Forms.Padding(6),Renderer=new DashboardMenuRenderer(trayColor)};
+        var menu=new DashboardTrayMenu{ShowImageMargin=true,Font=new System.Drawing.Font("Segoe UI",10.5f),
+            Padding=new System.Windows.Forms.Padding(3),Renderer=new DashboardMenuRenderer(trayColor)};
         menu.Opening+=(s,e)=>{
             menu.BackColor=trayColor("2B2B2B");
             menu.ForeColor=trayColor("F2F2F2");
+            foreach(var item in menu.Items.OfType<System.Windows.Forms.ToolStripMenuItem>()){
+                var oldImage=item.Image;
+                item.Image=TrayMenuGlyph((string)item.Tag,DashboardTheme.Resolve("#F2F2F2"));
+                if(oldImage!=null)oldImage.Dispose();
+            }
         };
         menu.Items.Add("Open Dashboard",null,(s,e)=>window.Dispatcher.BeginInvoke(new Action(()=>{
             Select(DashboardSection());
             Restore();
-        })));
+        }))).Tag="dashboard";
         menu.Items.Add("Open Tasks",null,(s,e)=>window.Dispatcher.BeginInvoke(new Action(()=>{
             Select("work");
             Restore();
-        })));
-        menu.Items.Add("Exit",null,(s,e)=>window.Dispatcher.BeginInvoke(new Action(Exit)));
+        }))).Tag="checklist";
+        menu.Items.Add(new System.Windows.Forms.ToolStripSeparator{Margin=new System.Windows.Forms.Padding(0,1,0,1)});
+        menu.Items.Add("Exit",null,(s,e)=>window.Dispatcher.BeginInvoke(new Action(Exit))).Tag="exit";
+        foreach(var item in menu.Items.OfType<System.Windows.Forms.ToolStripMenuItem>())
+            item.Padding=new System.Windows.Forms.Padding(12,3,12,3);
         tray.ContextMenuStrip=menu;
         window.Closing+=(s,e)=>{
             if(!exitRequested&&preferenceStore.Value.closeToTray){e.Cancel=true;Hide();}
@@ -80,9 +88,22 @@ internal sealed partial class WpfDashboard
             if(!e.Cancel&&shellBrand!=null)UpdateTaskbarSafely(()=>shellBrand.Clear(new WindowInteropHelper(window).Handle));
         };
         window.StateChanged+=(s,e)=>{if(window.WindowState==WindowState.Minimized&&preferenceStore.Value.minimizeToTray)Hide();};
-        window.Closed+=(s,e)=>{refreshTimer.Stop();tray.Dispose();menu.Dispose();trayIcon.Dispose();shellBrand.Dispose();};
+        window.Closed+=(s,e)=>{refreshTimer.Stop();tray.Dispose();foreach(var item in menu.Items.OfType<System.Windows.Forms.ToolStripMenuItem>())if(item.Image!=null)item.Image.Dispose();menu.Dispose();trayIcon.Dispose();shellBrand.Dispose();};
         refreshTimer=new System.Windows.Threading.DispatcherTimer{Interval=TimeSpan.FromSeconds(2)};
         refreshTimer.Tick+=(s,e)=>{if(reportsWindow!=null&&reportsWindow.IsVisible)RenderReportsInto(reportsRows,false);else if(window.IsVisible&&section=="reports")RenderCompact(false);};
+    }
+
+    static System.Drawing.Bitmap TrayMenuGlyph(string name,Color color){
+        const int size=16;
+        var visual=new DrawingVisual();
+        using(var context=visual.RenderOpen())context.DrawImage(VectorGlyph(name,color),new Rect(0,0,size,size));
+        var bitmap=new RenderTargetBitmap(size,size,96,96,PixelFormats.Pbgra32);
+        bitmap.Render(visual);
+        var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        using(var stream=new MemoryStream()){
+            encoder.Save(stream);stream.Position=0;
+            using(var image=new System.Drawing.Bitmap(stream))return new System.Drawing.Bitmap(image);
+        }
     }
 
     bool Compact {get{return compactView;}}

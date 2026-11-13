@@ -331,8 +331,15 @@ internal sealed partial class WpfDashboard {
                 presentDialog=dialog=>{ClickIn((DependencyObject)dialog.Content,"Remove");dialog.Close();return true;};
                 CloseoutCheck(ShowNotice(window,"Remove item","Remove \"Bravo task\"?","Remove"),"the explicit Remove action accepts the change");
             }finally{presentDialog=presenter;}
-            CloseoutCheck(tray.ContextMenuStrip.Items.Cast<System.Windows.Forms.ToolStripItem>().Select(item=>item.Text)
+            CloseoutCheck(tray.ContextMenuStrip.Items.OfType<System.Windows.Forms.ToolStripMenuItem>().Select(item=>item.Text)
                 .SequenceEqual(new[]{"Open Dashboard","Open Tasks","Exit"}),"tray offers direct workspace commands followed by Exit");
+            CloseoutCheck(tray.ContextMenuStrip.Items[2] is System.Windows.Forms.ToolStripSeparator&&
+                tray.ContextMenuStrip.Items.OfType<System.Windows.Forms.ToolStripMenuItem>().All(item=>item.Padding.Top==3&&item.Padding.Bottom==3),
+                "tray commands use compact vertical spacing and separate Exit");
+            var trayMenu=tray.ContextMenuStrip;
+            trayMenu.Size=trayMenu.PreferredSize;
+            CloseoutCheck(trayMenu.Region!=null&&!trayMenu.Region.IsVisible(0,0)&&trayMenu.Region.IsVisible(trayMenu.Width/2,trayMenu.Height/2),
+                "tray popup clips its outer corners and preserves its interior");
             SafeBackupVerification.Run(profile);
             VerifyDeepTaskCache();
             VerifyTaskSelectionLoads();
@@ -788,8 +795,8 @@ internal sealed partial class WpfDashboard {
                 return false;
             };
             ShowHelp();
-            var stable=shellBrand.IconResource;ApplyAccent(System.Drawing.Color.FromArgb(245,204,137));
-            CloseoutCheck(shellBrand.IconResource==stable&&DashboardData.Hash(File.ReadAllBytes(stable.Substring(0,stable.Length-2)))==DashboardData.Hash(DashboardBrand.IconBytes(DashboardAccent.Selected)),"accent updates stable shell icon bytes without changing resource path");
+            var previousResource=shellBrand.IconResource;ApplyAccent(System.Drawing.Color.FromArgb(245,204,137));
+            CloseoutCheck(shellBrand.IconResource==previousResource&&DashboardData.Hash(File.ReadAllBytes(previousResource.Substring(0,previousResource.Length-2)))==DashboardData.Hash(DashboardBrand.IconBytes(DashboardAccent.Selected)),"accent updates the stable relaunch icon");
             ApplyAccent(SavedAccent());
             Console.WriteLine("Closeout checks finished. Offscreen UI and data only; visible taskbar and native placement still require review.");
         }finally{presentDialog=presenter;}

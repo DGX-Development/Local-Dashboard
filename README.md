@@ -4,15 +4,15 @@
 
 Local Dashboard is a Windows app for opening your project folders, documents and websites, and keeping task lists together in one place.
 
-**Status:** In active development. The latest packaged release is **2.2.6**.
+**Status:** In active development. The latest packaged release is **2.2.7**.
 
-## Install 2.2.6
+## Install 2.2.7
 
-See the [v2.2.6 release](https://github.com/DGX-Development/Local-Dashboard/releases/tag/v2.2.6).
+See the [v2.2.7 release](https://github.com/DGX-Development/Local-Dashboard/releases/tag/v2.2.7).
 
-- [Windows x64 installer](https://github.com/DGX-Development/Local-Dashboard/releases/download/v2.2.6/LocalDashboard-2.2.6-Setup.exe)
-- [Portable ZIP](https://github.com/DGX-Development/Local-Dashboard/releases/download/v2.2.6/LocalDashboard-2.2.6-Portable.zip)
-- [SHA-256 checksums](https://github.com/DGX-Development/Local-Dashboard/releases/download/v2.2.6/SHA256SUMS.txt)
+- [Windows x64 installer](https://github.com/DGX-Development/Local-Dashboard/releases/download/v2.2.7/LocalDashboard-2.2.7-Setup.exe)
+- [Portable ZIP](https://github.com/DGX-Development/Local-Dashboard/releases/download/v2.2.7/LocalDashboard-2.2.7-Portable.zip)
+- [SHA-256 checksums](https://github.com/DGX-Development/Local-Dashboard/releases/download/v2.2.7/SHA256SUMS.txt)
 
 1. Close any older Dashboard copy using **File > Exit**, including copies in the system tray.
 2. Run Setup. It installs for your Windows account under `%LOCALAPPDATA%\Programs\Local Dashboard` by default. A desktop shortcut is optional.

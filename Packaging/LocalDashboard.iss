@@ -5,10 +5,10 @@
   #error Supply OutputFolder for the installer
 #endif
 #ifndef AppVersion
-  #define AppVersion "2.2.6"
+  #define AppVersion "2.2.7"
 #endif
 #ifndef FileVersion
-  #define FileVersion "2.2.6.0"
+  #define FileVersion "2.2.7.0"
 #endif
 #ifndef WizardLogo
   #error Supply WizardLogo containing the generated header PNG

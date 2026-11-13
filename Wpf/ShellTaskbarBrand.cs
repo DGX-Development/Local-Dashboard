@@ -7,7 +7,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Reflection;
 
-// Stable profile identity and icon resource, with a targeted refresh of matching shortcut images.
+// Keep the running taskbar and shortcut resource stable across previews and saves.
 internal sealed class ShellTaskbarBrand {
     [StructLayout(LayoutKind.Sequential)] struct PropertyKey { public Guid format;public uint id;internal PropertyKey(uint id){format=new Guid("9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3");this.id=id;} }
     [StructLayout(LayoutKind.Explicit,Size=24)] struct PropVariant { [FieldOffset(0)] public ushort type;[FieldOffset(8)] public IntPtr pointer;
@@ -100,7 +100,10 @@ internal sealed class ShellTaskbarBrand {
         if(handle==IntPtr.Zero||IconResource==null)return;
         Apply(handle);RefreshShortcuts();
     }
-    internal void RefreshShortcuts(){if(IconResource!=null)TaskbarShortcutIcons.Refresh(executable,arguments,AppId,IconResource.Substring(0,IconResource.Length-2),review);}
+    internal void RefreshShortcuts(){
+        if(IconResource==null)return;
+        TaskbarShortcutIcons.Refresh(executable,arguments,AppId,IconResource.Substring(0,IconResource.Length-2),review);
+    }
     internal string Read(IntPtr handle,uint id){var store=Open(handle);try{var key=new PropertyKey(id);PropVariant value;Marshal.ThrowExceptionForHR(store.GetValue(ref key,out value));try{return value.StringValue;}finally{PropVariantClear(ref value);}}finally{Marshal.ReleaseComObject(store);}}
     internal void Dispose(){if(nativeSmall!=null)nativeSmall.Dispose();if(nativeLarge!=null)nativeLarge.Dispose();nativeSmall=nativeLarge=null;nativeKey=null;}
     internal void Clear(IntPtr handle){if(handle==IntPtr.Zero)return;var store=Open(handle);try{foreach(uint id in new uint[]{5,3,4,2})Set(store,id,null);}finally{Marshal.ReleaseComObject(store);}}

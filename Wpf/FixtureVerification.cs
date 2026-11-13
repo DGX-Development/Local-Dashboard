@@ -14,24 +14,40 @@ internal sealed partial class WpfDashboard
     static extern IntPtr SendMessage(IntPtr handle,uint message,IntPtr wParam,IntPtr lParam);
     void VerifyVisibleIconSave(){
         VerifyNativeIcon();
-        Console.WriteLine("Native launch accent verified: "+DashboardAccent.Format(DashboardAccent.Selected)+".");
-        VerifyDialog(Settings,"Local Dashboard settings","visible-settings-save.png",dialog=>{
-            Visuals<TextBox>(dialog).Single(t=>System.Windows.Automation.AutomationProperties.GetName(t)=="Accent hex color").Text="#FF6600";
-            WaitForAppearancePreview();
-            if(DashboardAccent.Format(DashboardAccent.Selected)!="#FF6600")throw new Exception("Orange Preview failed.");
-            Click(dialog,"Save");
-        });
-        preferenceStore.Reload();
-        if(preferenceStore.Value.accentColor!="#FF6600")throw new Exception("Visible Settings Save failed.");
-        VerifyNativeIcon();
-        Console.WriteLine("Visible Settings saved custom #FF6600; inspect the actual taskbar before exiting.");
+        var sequences=new[]{new[]{"Amber","Blue","Amber"},new[]{"Violet","Rose","Mint"},new[]{"Blue","Violet","Amber"}};
+        foreach(var sequence in sequences)foreach(string preset in sequence){
+            string selected=null;
+            VerifyDialog(Settings,"Local Dashboard settings","visible-settings-save.png",dialog=>{
+                var button=Visuals<Button>(dialog).Single(b=>System.Windows.Automation.AutomationProperties.GetName(b)==preset+" accent");
+                button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                SettleTaskbarPreview();
+                selected=Visuals<TextBox>(dialog).Single(t=>System.Windows.Automation.AutomationProperties.GetName(t)=="Accent hex color").Text;
+                if(DashboardAccent.Format(DashboardAccent.Selected)!=selected)throw new Exception(preset+" preview failed.");
+                VerifyNativeIcon();Click(dialog,"Save");
+            });
+            SettleTaskbarPreview();preferenceStore.Reload();
+            if(preferenceStore.Value.accentColor!=selected)throw new Exception(preset+" save failed.");
+            VerifyNativeIcon();Console.WriteLine("Repeated Save diagnostic passed: "+preset);
+            VerifyDialog(Settings,"Local Dashboard settings","visible-settings-cancel.png",dialog=>{
+                var button=Visuals<Button>(dialog).Single(b=>System.Windows.Automation.AutomationProperties.GetName(b)==(preset=="Rose"?"Mint":"Rose")+" accent");
+                button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));SettleTaskbarPreview();VerifyNativeIcon();Click(dialog,"Cancel");
+            });
+            SettleTaskbarPreview();
+            if(DashboardAccent.Format(DashboardAccent.Selected)!=selected)throw new Exception("Cancel did not restore "+preset);
+            VerifyNativeIcon();Console.WriteLine("Cancel diagnostic passed: "+preset);
+        }
+        Console.WriteLine("Three paced multi-save passes completed. Explorer pixels NOT verified by this diagnostic.");Exit();
+    }
+    static void SettleTaskbarPreview(){
+        var frame=new DispatcherFrame();var timer=new DispatcherTimer{Interval=TimeSpan.FromSeconds(3)};
+        timer.Tick+=(s,e)=>{timer.Stop();frame.Continue=false;};timer.Start();Dispatcher.PushFrame(frame);
     }
     void VerifyNativeIcon(){
         var expected=DashboardAccent.Selected;var hwnd=new System.Windows.Interop.WindowInteropHelper(window).Handle;
         if(ShellTaskbarBrand.ProcessIdentity()!=shellBrand.AppId)throw new Exception("Process and window taskbar identities differ.");
         if(shellBrand.Read(hwnd,2)!=shellBrand.RelaunchCommand)throw new Exception("Shell relaunch command differs from the selected profile command.");
         if(shellBrand.Read(hwnd,5)!=shellBrand.AppId||shellBrand.Read(hwnd,3)!=shellBrand.IconResource)throw new Exception("Shell taskbar identity or icon resource differs.");
-        var iconPath=shellBrand.IconResource.Substring(0,shellBrand.IconResource.Length-2);if(!File.Exists(iconPath)||Path.GetFileName(iconPath)!="dashboard-taskbar.ico"||DashboardData.Hash(File.ReadAllBytes(iconPath))!=DashboardData.Hash(DashboardBrand.IconBytes(expected)))throw new Exception("Stable shell icon resource is missing or has wrong colour bytes.");
+        var iconPath=shellBrand.IconResource.Substring(0,shellBrand.IconResource.Length-2);if(!File.Exists(iconPath)||Path.GetFileName(iconPath)!="dashboard-taskbar.ico"||DashboardData.Hash(File.ReadAllBytes(iconPath))!=DashboardData.Hash(DashboardBrand.IconBytes(expected)))throw new Exception("The stable relaunch icon does not contain the current accent.");
         Console.WriteLine("Shell taskbar properties read back: "+shellBrand.AppId+" / "+shellBrand.IconResource+". Actual taskbar appearance still requires visual verification.");
         foreach(int kind in new[]{0,1}){
             var handle=SendMessage(hwnd,0x007F,new IntPtr(kind),IntPtr.Zero);if(handle==IntPtr.Zero)throw new Exception("Missing native window icon kind "+kind);

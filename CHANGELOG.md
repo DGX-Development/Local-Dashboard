@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.2.7 - 2026-11-13
+
+- Refines the notification-area menu and taskbar icon appearance.
+
+
 ## 2.2.6 - 2026-11-12
 
 - Setup follows the Windows light or dark theme and displays the Local Dashboard icon in the wizard header.
