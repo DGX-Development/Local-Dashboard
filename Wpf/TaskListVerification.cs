@@ -345,6 +345,19 @@ internal sealed partial class WpfDashboard {
                 throw new Exception("Compact retains full-size navigation controls.");
             if(pass==0){
                 WorkTabs(new[]{0,1,2,-1});
+                var openingTabs=compact.Children.OfType<Button>().ToArray();
+                var originalLabels=openingTabs.Select(button=>button.Content).ToArray();
+                string[] exampleLabels={"Project Tasks","Personal tasks","Future Tasks","Checklists"};
+                for(int index=0;index<openingTabs.Length;index++)openingTabs[index].Content=exampleLabels[index];
+                double openingWidth=CompactOpeningWidth();
+                if(openingWidth!=DefaultCompactWidth)throw new Exception("Standard task labels no longer fit the 640-DIP opening width.");
+                CaptureShell(profile,"compact-default-width.png",(int)openingWidth,760);
+                double firstTop=openingTabs[0].TranslatePoint(new Point(),(UIElement)window.Content).Y;
+                if(openingTabs.Any(button=>Math.Abs(button.TranslatePoint(new Point(),(UIElement)window.Content).Y-firstTop)>.5))
+                    throw new Exception("Checklists wraps at the default compact opening width.");
+                openingTabs[0].Content="A considerably longer project task list name";
+                if(CompactOpeningWidth()<=openingWidth)throw new Exception("Long task labels do not widen the compact opening size.");
+                for(int index=0;index<openingTabs.Length;index++)openingTabs[index].Content=originalLabels[index];
                 double previousWidth=window.Width;
                 foreach(double width in new[]{500.0,560.0,760.0}){
                     CaptureShell(profile,"compact-spacing-"+width+".png",(int)width,500);

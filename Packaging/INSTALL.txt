@@ -1,4 +1,4 @@
-LOCAL DASHBOARD 3.0.0
+LOCAL DASHBOARD 3.0.1
 
 Before installing or switching copies, use File > Exit in any running Dashboard,
 including a copy hidden in the system tray. Only one copy runs per Windows user.
@@ -18,7 +18,7 @@ The installer is unsigned. Compare downloaded files with the GitHub release's
 SHA256SUMS.txt when verifying a download.
 
 FIRST SETUP AND RESTORE
-A fresh 3.0.0 release starts with empty Projects, Documents, Websites and All links
+A fresh 3.0.1 release starts with empty Projects, Documents, Websites and All links
 categories. No personal lists, icons or paths are included. Task list 1 and
 Checklists are visible initially; Checklists starts empty. Generic examples in
 the Examples folder can be selected manually if you want to try them.

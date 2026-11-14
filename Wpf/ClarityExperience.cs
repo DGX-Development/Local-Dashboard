@@ -38,7 +38,7 @@ internal sealed partial class WpfDashboard {
         var start=transform.Transform(new Point(screen.Left,screen.Top));var end=transform.Transform(new Point(screen.Right,screen.Bottom));
         double width=Math.Max(760,Math.Min(1280,end.X-start.X)),height=Math.Max(540,Math.Min(860,end.Y-start.Y));
         fullBounds=new Rect(start.X+(end.X-start.X-width)/2,start.Y+(end.Y-start.Y-height)/2,width,height);fullState=WindowState.Normal;
-        compactSize=new Size(Math.Max(CompactMinimumWidth(),Math.Min(580,end.X-start.X)),Math.Max(420,Math.Min(760,end.Y-start.Y)));
+        compactSize=new Size(Math.Max(CompactMinimumWidth(),Math.Min(DefaultCompactWidth,end.X-start.X)),Math.Max(420,Math.Min(760,end.Y-start.Y)));
         compactBounds=new Rect(start.X+(end.X-start.X-compactSize.Width)/2,start.Y+(end.Y-start.Y-compactSize.Height)/2,compactSize.Width,compactSize.Height);
         var current=Compact?compactBounds.Value:fullBounds;window.WindowState=WindowState.Normal;window.Width=current.Width;window.Height=current.Height;window.Left=current.Left;window.Top=current.Top;
         if(!nonWindowedVerification){
@@ -51,6 +51,20 @@ internal sealed partial class WpfDashboard {
         UpdateHeaderActions();var toolbar=Find<WrapPanel>("CompactToolbar");double width=0;
         foreach(Button button in toolbar.Children){if(button.Visibility!=Visibility.Visible)continue;button.Measure(new Size(Double.PositiveInfinity,Double.PositiveInfinity));width+=button.DesiredSize.Width;}
         return Math.Max(520,Math.Ceiling(width+92));
+    }
+    double CompactOpeningWidth(){
+        var tabs=Find<WrapPanel>("WorkNavigation");
+        double tabWidth=0;
+        foreach(Button tab in tabs.Children.OfType<Button>()){
+            if(tab.Visibility!=Visibility.Visible)continue;
+            tab.Measure(new Size(Double.PositiveInfinity,Double.PositiveInfinity));
+            tabWidth+=tab.DesiredSize.Width;
+        }
+        var edit=Find<StackPanel>("CompactEditActions");
+        edit.Measure(new Size(Double.PositiveInfinity,Double.PositiveInfinity));
+        var inset=Find<DockPanel>("MainContent").Margin;
+        // Match the reserved lane and row inset used by AlignHeaderGutter, plus native frame allowance.
+        return Math.Max(DefaultCompactWidth,Math.Ceiling(tabWidth+edit.DesiredSize.Width+inset.Left+inset.Right+rows.Margin.Right+17+16));
     }
     void LoadCompactBounds(){
         try{string path=StatePath("compact-window.json");if(!File.Exists(path))return;var value=AppData.Json.Deserialize<CompactPlacement>(Encoding.UTF8.GetString(DashboardData.ReadBounded(path,4096)));

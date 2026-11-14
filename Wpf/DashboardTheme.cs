@@ -11,7 +11,7 @@ internal static class DashboardTheme {
     internal static Color Resolve(string hex){var c=(Color)ColorConverter.ConvertFromString(hex);double brightness=(c.R*.2126+c.G*.7152+c.B*.0722)/255;
         if(SystemParameters.HighContrast)return brightness>.53?SystemColors.WindowTextColor:SystemColors.WindowColor;
         if(Dark)return c;
-        var map=new Dictionary<string,string>{{"202020","F5F5F5"},{"262626","EAEAEA"},{"2B2B2B","FFFFFF"},{"303030","F0F0F0"},{"383838","E0E0E0"},{"454545","D2D2D2"},{"969696","646464"},{"B9B9B9","535353"},{"C1C1C1","454545"},{"F2F2F2","202020"},{"FFFFFF","202020"},{"888888","666666"}};string mapped;if(map.TryGetValue(hex.TrimStart('#').ToUpperInvariant(),out mapped))return (Color)ColorConverter.ConvertFromString("#"+mapped);
+        var map=new Dictionary<string,string>{{"202020","F5F5F5"},{"252525","EFEFEF"},{"262626","EAEAEA"},{"2B2B2B","FFFFFF"},{"303030","F0F0F0"},{"383838","E0E0E0"},{"454545","D2D2D2"},{"969696","646464"},{"B9B9B9","535353"},{"C1C1C1","454545"},{"F2F2F2","202020"},{"FFFFFF","202020"},{"888888","666666"}};string mapped;if(map.TryGetValue(hex.TrimStart('#').ToUpperInvariant(),out mapped))return (Color)ColorConverter.ConvertFromString("#"+mapped);
         byte v=(byte)Math.Max(30,Math.Min(245,255-brightness*255));return Color.FromArgb(c.A,v,v,v);
     }
     internal static void Apply(string preference){

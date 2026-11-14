@@ -25,7 +25,8 @@ internal sealed partial class WpfDashboard
     TaskbarRefreshQueue taskbarUpdates;
     string taskbarButtonResource;
     System.Windows.Threading.DispatcherTimer taskbarButtonTimer;
-    Size compactSize=new Size(580,760);
+    const double DefaultCompactWidth=640;
+    Size compactSize=new Size(DefaultCompactWidth,760);
     System.Windows.Threading.DispatcherTimer refreshTimer;
 
 

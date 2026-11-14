@@ -1,4 +1,4 @@
-param([Parameter(Mandatory)][string]$Compiler,[string]$Version='3.0.0',[string]$OutputDirectory=(Join-Path $PSScriptRoot '.dev\Review\Net10\Installer'),[string]$VerifiedPackage,[string]$DotNet='dotnet',[switch]$BlankProfile)
+param([Parameter(Mandatory)][string]$Compiler,[string]$Version='3.0.1',[string]$OutputDirectory=(Join-Path $PSScriptRoot '.dev\Review\Net10\Installer'),[string]$VerifiedPackage,[string]$DotNet='dotnet',[switch]$BlankProfile)
 $ErrorActionPreference='Stop'
 $root=$PSScriptRoot
 $output=[IO.Path]::GetFullPath($OutputDirectory)

@@ -16,9 +16,9 @@ using System.Windows.Forms;
 [assembly: AssemblyProduct("Local Dashboard")]
 [assembly: AssemblyDescription("Local projects, documents and workflows")]
 #if WPF_REBUILD
-[assembly: AssemblyVersion("3.0.0")]
-[assembly: AssemblyFileVersion("3.0.0")]
-[assembly: AssemblyInformationalVersion("3.0.0")]
+[assembly: AssemblyVersion("3.0.1")]
+[assembly: AssemblyFileVersion("3.0.1")]
+[assembly: AssemblyInformationalVersion("3.0.1")]
 #else
 [assembly: AssemblyVersion("1.5.6.0")]
 [assembly: AssemblyFileVersion("1.5.6.0")]

@@ -809,7 +809,7 @@ internal sealed partial class WpfDashboard {
             window.Width=1000;window.Height=700;window.Left=100;window.Top=120;
             SetCompact(true);window.Left=320;window.Top=160;window.Width=600;window.Height=610;SetCompact(false);
             CloseoutCheck(window.Left==100&&window.Top==120&&window.Width==1000&&window.Height==700,"Expand restores independent full placement");
-            SetCompact(true);CloseoutCheck(window.Left==320&&window.Top==160&&window.Width==600&&window.Height==610,"Compact restores independent placement");
+            SetCompact(true);CloseoutCheck(window.Left==320&&window.Top==160&&window.Width==CompactOpeningWidth()&&window.Height==610,"Compact restores independent placement with readable opening width");
             nonWindowedVerification=false;SaveWindowBounds();nonWindowedVerification=true;
             fullBounds=new Rect();compactBounds=null;LoadFullBounds();LoadCompactBounds();
             CloseoutCheck(fullBounds.Left==100&&fullBounds.Top==120&&compactBounds.Value.Left==320&&compactBounds.Value.Top==160,"both placements reload from their saved files");

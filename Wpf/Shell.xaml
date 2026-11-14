@@ -4,10 +4,10 @@
  Background="{DynamicResource Background}" Foreground="{DynamicResource ThemeF2F2F2}"
  TextOptions.TextFormattingMode="Display" RenderOptions.BitmapScalingMode="HighQuality" SnapsToDevicePixels="True" FontFamily="Segoe UI Variable Text" FontSize="14" UseLayoutRounding="True">
  <DockPanel Background="{DynamicResource Background}">
-  <DockPanel x:Name="MenuBar" DockPanel.Dock="Top" LastChildFill="True" Margin="0,6,0,6">
-   <StackPanel x:Name="FullWindowActions" DockPanel.Dock="Right" Orientation="Horizontal" Margin="0,2,16,2"/>
-   <Menu x:Name="AppMenu" Padding="10,0" Height="40">
-   <Menu.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" VerticalAlignment="Center"/></ItemsPanelTemplate></Menu.ItemsPanel>
+  <DockPanel x:Name="MenuBar" DockPanel.Dock="Top" LastChildFill="True" Height="36" Background="{DynamicResource Background}">
+
+   <Menu x:Name="AppMenu" Padding="10,0" Height="36">
+   <Menu.Resources><Style TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}"><Style.Triggers><Trigger Property="Role" Value="TopLevelHeader"><Setter Property="Height" Value="28"/><Setter Property="Padding" Value="11,2,11,4"/><Setter Property="Margin" Value="2,0"/><Setter Property="VerticalAlignment" Value="Center"/></Trigger></Style.Triggers></Style></Menu.Resources><Menu.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" VerticalAlignment="Center"/></ItemsPanelTemplate></Menu.ItemsPanel>
    <MenuItem Header="_File"><MenuItem x:Name="BackupMenu" Header="Back up configuration…"/><MenuItem x:Name="RestoreMenu" Header="Restore configuration…"/><Separator/><MenuItem x:Name="SettingsMenu" Header="Settings…"/><Separator/><MenuItem x:Name="ExitMenu" Header="Exit" InputGestureText="Ctrl+Q"/></MenuItem>
    <MenuItem Header="_View"><MenuItem x:Name="DirectoryMenu" Header="Dashboard"/><MenuItem x:Name="WorkMenu" Header="Tasks"/><MenuItem x:Name="RefreshMenu" Header="Refresh directory"/><Separator/><MenuItem x:Name="CompactMenu" Header="Compact view"/><MenuItem x:Name="TopMenu" Header="Always on top" IsCheckable="True" Tag="pin-menu"/></MenuItem>
    <MenuItem Header="_Help"><MenuItem x:Name="GuideMenu" Header="Help &amp; user guide" InputGestureText="F1"/><MenuItem x:Name="SetupMenu" Header="Run setup again…"/><MenuItem x:Name="CheckUpdatesMenu" Header="Check for updates"/><MenuItem x:Name="ReportIssueMenu" Header="Report an issue…"/><Separator/><MenuItem x:Name="AboutMenu" Header="About Local Dashboard"/></MenuItem>
@@ -16,7 +16,7 @@
 
   <Grid>
    <Grid.ColumnDefinitions><ColumnDefinition x:Name="SidebarColumn" Width="252"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-   <Border x:Name="Sidebar" Padding="18,16" Background="{DynamicResource Theme262626}">
+   <Border x:Name="Sidebar" Padding="24,24,7,24" Background="{DynamicResource Theme262626}">
     <ScrollViewer x:Name="SidebarScroll" VerticalScrollBarVisibility="Auto"><DockPanel MinHeight="{Binding ViewportHeight, ElementName=SidebarScroll}"><StackPanel x:Name="SidebarFooter" DockPanel.Dock="Bottom" Margin="0,24,0,0"/><StackPanel>
      <Image x:Name="Brand" Width="48" Height="48" HorizontalAlignment="Left"/>
      <TextBlock Text="Local Dashboard" FontSize="20" FontWeight="SemiBold" Margin="0,10,0,4"/>
@@ -26,9 +26,9 @@
      <StackPanel x:Name="TaskNavigation" Visibility="Collapsed"/>
     </StackPanel></DockPanel></ScrollViewer>
    </Border>
-   <DockPanel x:Name="MainContent" Grid.Column="1" Margin="30,24,6,20">
+   <DockPanel x:Name="MainContent" Grid.Column="1" Margin="30,12,6,20">
     <StackPanel DockPanel.Dock="Top">
-     <DockPanel><WrapPanel x:Name="CompactToolbar" DockPanel.Dock="Right" Visibility="Collapsed"/>
+     <DockPanel><StackPanel x:Name="FullWindowActions" DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,24,0"/><WrapPanel x:Name="CompactToolbar" DockPanel.Dock="Right" Visibility="Collapsed"/>
       <TextBlock x:Name="Heading" FontSize="29" FontWeight="SemiBold" VerticalAlignment="Center"/>
      </DockPanel>
      <DockPanel x:Name="SearchBar" Margin="0,12,0,14"><Button x:Name="OpenFolder" DockPanel.Dock="Right" Content="Open folder" Height="36" VerticalAlignment="Center" Margin="9,0,0,0"/><Grid><TextBox x:Name="Search" AutomationProperties.Name="Search all links" Height="36" VerticalContentAlignment="Center" Margin="0"/><TextBlock Text="Search" Margin="11,0" VerticalAlignment="Center" Foreground="{DynamicResource Muted}" IsHitTestVisible="False"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding Text,ElementName=Search}" Value=""/><Condition Binding="{Binding IsKeyboardFocusWithin,ElementName=Search}" Value="False"/></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible"/></MultiDataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></Grid></DockPanel>

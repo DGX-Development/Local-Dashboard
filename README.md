@@ -4,15 +4,15 @@
 
 Local Dashboard is a Windows app for opening your project folders, documents and websites, and keeping task lists together in one place.
 
-**Status:** In active development. The latest packaged release is **3.0.0**.
+**Status:** In active development. The latest packaged release is **3.0.1**.
 
-## Install 3.0.0
+## Install 3.0.1
 
-See the [v3.0.0 release](https://github.com/DGX-Development/Local-Dashboard/releases/tag/v3.0.0).
+See the [v3.0.1 release](https://github.com/DGX-Development/Local-Dashboard/releases/tag/v3.0.1).
 
-- [Windows x64 installer](https://github.com/DGX-Development/Local-Dashboard/releases/download/v3.0.0/LocalDashboard-3.0.0-Setup.exe)
-- [Portable ZIP](https://github.com/DGX-Development/Local-Dashboard/releases/download/v3.0.0/LocalDashboard-3.0.0-Portable.zip)
-- [SHA-256 checksums](https://github.com/DGX-Development/Local-Dashboard/releases/download/v3.0.0/SHA256SUMS.txt)
+- [Windows x64 installer](https://github.com/DGX-Development/Local-Dashboard/releases/download/v3.0.1/LocalDashboard-3.0.1-Setup.exe)
+- [Portable ZIP](https://github.com/DGX-Development/Local-Dashboard/releases/download/v3.0.1/LocalDashboard-3.0.1-Portable.zip)
+- [SHA-256 checksums](https://github.com/DGX-Development/Local-Dashboard/releases/download/v3.0.1/SHA256SUMS.txt)
 
 1. Close any older Dashboard copy using **File > Exit**, including copies in the system tray.
 2. Run Setup. It installs for your Windows account under `%LOCALAPPDATA%\Programs\Local Dashboard` by default. A desktop shortcut is optional.
@@ -22,17 +22,17 @@ Requirements: Windows 10 22H2 or Windows 11 on x64, with the .NET 10 runtime inc
 
 The optional portable ZIP contains an `App` folder. Extract it to a writable folder and run `LocalDashboard.exe`; keep all ten supplied files together. Do not run from inside the ZIP.
 
-For an existing configuration, first use **File > Back up configuration** in your previous copy, then choose **Restore from a backup** on the welcome screen of the new copy or **File > Restore configuration** in Dashboard. Review which restored copies Dashboard will use before confirming. An upgrade in the same folder keeps its existing configuration. See the [installation notes](Packaging/INSTALL.txt).
+For an existing configuration, first use **File > Back up configuration** in your previous copy, then choose **Restore from a backup** on the welcome screen of the new copy or **File > Restore configuration** in Dashboard. Review which restored copies Dashboard will use before confirming. An upgrade in the same folder keeps its existing configuration. For an existing 2.2.7 or 3.0.x portable folder, fully exit Dashboard and replace only `LocalDashboard.exe` from the new package; retain `catalog.json`, `.local`, custom icons and linked files. See the [installation notes](Packaging/INSTALL.txt).
 
-A fresh 3.0.0 release starts with empty **Projects**, **Documents**, **Websites** and **All links** categories, ready for your backup or your own links. Generic files in the supplied Examples folder can be selected manually. Task list 1 is visible. Choosing files for Task list 2 and Task list 3 adds their tabs. Checklists starts empty inside the app's data folder. Existing profiles keep their catalog and saved labels.
+A fresh 3.0.1 release starts with empty **Projects**, **Documents**, **Websites** and **All links** categories, ready for your backup or your own links. Generic files in the supplied Examples folder can be selected manually. Task list 1 is visible. Choosing files for Task list 2 and Task list 3 adds their tabs. Checklists starts empty inside the app's data folder. Existing profiles keep their catalog and saved labels.
 
 ## Screenshots
 
-Local Dashboard 3.0.0 showing the same sample projects in light and dark appearance. Examples include folders, notes, and website links.
+Local Dashboard 3.0.1 showing the same sample projects in light and dark appearance. Examples include folders, notes, and website links.
 
 | Light appearance | Dark appearance |
 | --- | --- |
-| [![Local Dashboard in light appearance](Artwork/Exports/Web/local-dashboard-3.0.0-light-1280x860.png)](Artwork/Exports/Web/local-dashboard-3.0.0-light-1280x860.png) | [![Local Dashboard in dark appearance](Artwork/Exports/Web/local-dashboard-3.0.0-dark-1280x860.png)](Artwork/Exports/Web/local-dashboard-3.0.0-dark-1280x860.png) |
+| [![Local Dashboard in light appearance](Artwork/Exports/Web/local-dashboard-3.0.1-light-1280x860.png)](Artwork/Exports/Web/local-dashboard-3.0.1-light-1280x860.png) | [![Local Dashboard in dark appearance](Artwork/Exports/Web/local-dashboard-3.0.1-dark-1280x860.png)](Artwork/Exports/Web/local-dashboard-3.0.1-dark-1280x860.png) |
 
 ## What it does
 
@@ -65,7 +65,7 @@ The current application is WPF. Use Windows PowerShell or PowerShell 7, the .NET
 
 The script builds the app, creates an exact ten-file payload with an empty catalog, and produces Setup, a portable ZIP and checksums under `.dev\Review\Net10\Installer`. It refuses to overwrite an existing payload; use `-OutputDirectory` with a fresh directory under `.dev\Review` for another build. Local profiles, task files and private development notes are excluded.
 
-`Wpf/Build Wpf.ps1` is the explicit-source application build. `Build Dashboard.ps1`, the browser assets and Node scripts remain legacy sources; they are not the 3.0.0 release build path.
+`Wpf/Build Wpf.ps1` is the explicit-source application build. `Build Dashboard.ps1`, the browser assets and Node scripts remain legacy sources; they are not the 3.0.1 release build path.
 
 ## Verification and known limits
 

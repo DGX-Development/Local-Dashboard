@@ -163,7 +163,7 @@ internal sealed partial class WpfDashboard
         navigation.Children.Add(editActions);
         var footer=Find<StackPanel>("SidebarFooter");
         footer.Children.Clear();
-        footer.Children.Add(IconAction("Settings","settings",()=>Protect(Settings)));
+        var settingsAction=IconAction("Settings","settings",()=>Protect(Settings));settingsAction.Margin=new Thickness(0);footer.Children.Add(settingsAction);
 
     }
 
@@ -196,7 +196,7 @@ internal sealed partial class WpfDashboard
         Find<DockPanel>("MenuBar").Visibility=Compact?Visibility.Collapsed:Visibility.Visible;
         var compactActions=Find<WrapPanel>("CompactToolbar");
         compactActions.Visibility=Compact?Visibility.Visible:Visibility.Collapsed;
-        Panel fullActions=Find<StackPanel>("FullWindowActions");
+        Panel fullActions=Find<StackPanel>("FullWindowActions");fullActions.Visibility=Compact?Visibility.Collapsed:Visibility.Visible;
         Panel destination=Compact?(Panel)compactActions:fullActions;
         Panel previous=Compact?fullActions:compactActions;
         while(previous.Children.Count>0)
@@ -205,7 +205,7 @@ internal sealed partial class WpfDashboard
             previous.Children.RemoveAt(0);
             destination.Children.Add(button);
         }
-        Find<DockPanel>("MainContent").Margin=Compact?new Thickness(22):new Thickness(30,24,6,20);
+        Find<DockPanel>("MainContent").Margin=Compact?new Thickness(22):new Thickness(30,12,6,20);
         rows.Margin=new Thickness(0,0,Compact?14:7,0);
         heading.FontSize=Compact?24:29;
         UpdateHeaderActions();
@@ -224,7 +224,8 @@ internal sealed partial class WpfDashboard
             expandedSection=section;
             Select("work");window.WindowState=WindowState.Normal;compactView=true;
             UpdateViewChrome();
-            window.MinWidth=CompactMinimumWidth();window.MinHeight=420;window.Width=Math.Max(window.MinWidth,compactSize.Width);window.Height=Math.Max(window.MinHeight,compactSize.Height);
+            Render();
+            window.MinWidth=CompactMinimumWidth();window.MinHeight=420;window.Width=Math.Max(CompactOpeningWidth(),Math.Max(window.MinWidth,compactSize.Width));window.Height=Math.Max(window.MinHeight,compactSize.Height);
             window.Left=compactBounds.HasValue?compactBounds.Value.Left:centerX-window.Width/2;window.Top=compactBounds.HasValue?compactBounds.Value.Top:centerY-window.Height/2;
             if(!verifying)FitToWorkArea();
         }
@@ -249,6 +250,7 @@ internal sealed partial class WpfDashboard
         double gutter=rows.Margin.Right+Math.Max(0,scroll.ActualWidth-scroll.ViewportWidth);
         var bar=Find<DockPanel>("SearchBar");bar.Margin=new Thickness(0,12,gutter,14);
         var toolbar=Find<WrapPanel>("CompactToolbar");toolbar.Margin=new Thickness(0,0,gutter,12);
+        Find<StackPanel>("FullWindowActions").Margin=new Thickness(0,0,gutter,0);
         Find<DockPanel>("CompactTaskToolbar").Margin=new Thickness(0,0,gutter,0);
     }
 

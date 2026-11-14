@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.0.1 - 2026-11-14
+
+- Opens compact Tasks at 640 DIPs or wider when needed to fit the task tabs and Edit action.
+- Uses an unshaded 36-DIP menu row with centered labels, places view/pin actions beside the page heading, and reduces the full-view top inset.
+
+- Balances visible sidebar padding around left-aligned branding, navigation and Settings while reserving scrollbar space.
+
 ## 3.0.0 - 2026-11-13
 
 - Migrates the existing WPF application to self-contained .NET 10 on Windows x64.

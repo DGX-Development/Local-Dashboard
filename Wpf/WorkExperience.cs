@@ -66,7 +66,7 @@ internal sealed partial class WpfDashboard {
     {
         var button=supplied??new Button();
         button.SetResourceReference(FrameworkElement.StyleProperty,typeof(Button));
-        button.Content=GlyphImage(glyph);
+        var icon=GlyphImage(glyph);icon.Width=icon.Height=24;button.Content=icon;
         button.Width=button.Height=36;
         button.Margin=new Thickness(6,0,0,0);
         button.Padding=new Thickness(0);
