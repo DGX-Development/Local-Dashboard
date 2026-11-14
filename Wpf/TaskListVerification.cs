@@ -149,10 +149,7 @@ internal sealed partial class WpfDashboard {
                 var root=dialog.Content as DependencyObject;
                 Capture(dialog.Content as UIElement,Path.Combine(profile,"review-"+SafeName(dialog.Title)+".png"),(int)dialog.Width-16,(int)dialog.Height-39);
                 if(dialog.Title=="Report an issue"){
-                    var fields=Visuals<TextBox>(root).ToArray();if(fields.Length!=3||Visuals<Label>(root).Count()!=3)throw new Exception("Issue form fields differ.");
-                    foreach(var field in fields)field.Text="";
-                    string report=ComposeIssueReport("2.2.0","","","");
-                    if(!report.Contains("What happened instead?")||!report.StartsWith("Local Dashboard 2.2.0"))throw new Exception("Clearing answers removed report labels.");
+                    if(Visuals<TextBox>(root).Any()||!Visuals<Button>(root).Any(b=>Equals(b.Content,"Open GitHub"))||!Visuals<Button>(root).Any(b=>Equals(b.Content,"Cancel")))throw new Exception("Issue handoff controls differ.");
                 }
                 if(dialog.Title=="About Local Dashboard"){
                     var mark=Visuals<Image>(root).Single(i=>Equals(i.Tag,"publisher"));
@@ -346,6 +343,25 @@ internal sealed partial class WpfDashboard {
             SetCompact(true);
             if(full.Children.Count!=0||compact.Children.OfType<Button>().Count()!=VisibleTaskTabs().Length)
                 throw new Exception("Compact retains full-size navigation controls.");
+            if(pass==0){
+                WorkTabs(new[]{0,1,2,-1});
+                double previousWidth=window.Width;
+                foreach(double width in new[]{500.0,560.0,760.0}){
+                    CaptureShell(profile,"compact-spacing-"+width+".png",(int)width,500);
+                    var edit=Visuals<Button>(Find<StackPanel>("CompactEditActions")).Single();
+                    double editLeft=edit.TranslatePoint(new Point(0,0),(UIElement)window.Content).X;
+                    double contentTop=Find<ScrollViewer>("ContentScroll").TranslatePoint(new Point(0,0),(UIElement)window.Content).Y;
+                    foreach(var tab in compact.Children.OfType<Button>()){
+                        Point location=tab.TranslatePoint(new Point(0,0),(UIElement)window.Content);
+                        if(location.X+tab.ActualWidth>editLeft-7.5||location.Y+tab.ActualHeight>contentTop-7.5)
+                            throw new Exception("Compact task buttons lost their spacing at width "+width+" tab="+tab.Content+" x="+location.X+" width="+tab.ActualWidth+" editLeft="+editLeft+" bottom="+(location.Y+tab.ActualHeight)+" contentTop="+contentTop);
+                    }
+                    if(edit.TranslatePoint(new Point(0,edit.ActualHeight),(UIElement)window.Content).Y>contentTop-7.5)
+                        throw new Exception("Compact Edit touches the content at width "+width);
+                    CaptureShell(profile,"compact-spacing-"+width+".png",(int)width,500);
+                }
+                window.Width=previousWidth;window.UpdateLayout();
+            }
             SetCompact(false);
             if(compact.Children.Count!=0||full.Children.OfType<Button>().Count()!=VisibleTaskTabs().Length)
                 throw new Exception("Full view retains Compact navigation controls.");

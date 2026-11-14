@@ -1,49 +1,70 @@
-LOCAL DASHBOARD
+LOCAL DASHBOARD 3.0.0
 
-Close any existing Local Dashboard using File > Exit before installing.
+Before installing or switching copies, use File > Exit in any running Dashboard,
+including a copy hidden in the system tray. Only one copy runs per Windows user.
 
+INSTALL OR USE PORTABLE
 Setup installs for your Windows account, normally under:
 %LOCALAPPDATA%\Programs\Local Dashboard
-
 Open Local Dashboard from the Start menu. A desktop shortcut is optional.
-A new profile starts with Projects, Documents, Websites and All links.
-The first three contain one clearly labeled example each. Use Edit to change
-names and destinations or reorder categories and links. Task list 1 and
-Checklists appear by default. Choose files in Settings > Tasks to add the
-other two task lists.
-No personal lists or paths are included. The setup walkthrough opens for a new profile. Help > Run setup again opens it later.
 
-This download contains a starter catalog, not your personal files. To carry over
-an existing Dashboard configuration, first use File > Back up configuration in
-your existing copy. In the new copy, choose Restore from a backup on the welcome
-screen, or use File > Restore configuration.
-Review which restored copies Dashboard will use before confirming. Keep your original backup.
+For portable use, extract the ZIP's App folder to a writable location and run
+LocalDashboard.exe. Keep all supplied files and the Examples folder together.
+Do not run the app from inside the ZIP.
 
-The catalog and .local settings/checklist folder live beside the executable.
-Upgrades preserve your settings and data. When uninstalling, choose whether to keep or remove settings, links and favorites. Keep is the default. Task files and checklist data stay in place.
-Back up configuration before manually editing or moving the application folder.
+Requirements: Windows 10 22H2 or Windows 11 on x64. The self-contained package
+includes the .NET 10 runtime; no separate runtime installation is required.
+The installer is unsigned. Compare downloaded files with the GitHub release's
+SHA256SUMS.txt when verifying a download.
 
-Each task list can add and edit tasks in its selected text file. Checklists
-is the separate quick checklist and saves automatically.
-Choose or create task files in Settings > Tasks. Save loads new selections.
-Task views reread their files when opened. Use Refresh beside Search to
-reread the current tab. You can select a file in an already-synced folder.
+FIRST SETUP AND RESTORE
+A fresh 3.0.0 release starts with empty Projects, Documents, Websites and All links
+categories. No personal lists, icons or paths are included. Task list 1 and
+Checklists are visible initially; Checklists starts empty. Generic examples in
+the Examples folder can be selected manually if you want to try them.
 
-Local Dashboard 2.2.0 and newer share one running instance per Windows user.
-Older builds do not contain the same guard. Retire old launchers after confirming
-the installed copy works and your desired data has been restored.
+To bring your existing setup, first use File > Back up configuration in the old
+copy. In the new copy, choose Restore from a backup on the welcome screen, or
+File > Restore configuration. Backups include readable custom icons and available
+task-list/checklist copies. Restore reconnects included icons. Older backups
+containing only icon paths need the original images or replacement icons.
+Review each task-source choice before confirming and retain your original backup.
 
-Open a sample project folder, brief, or website. Use Edit below the sidebar to
-manage categories, links, and icons. Add a link, choose what it opens, enter its
-location, and Save. Removing a link keeps the original file or folder. Show or
-hide All links in Settings > Appearance.
+The walkthrough also lets you add your own first link and choose task files.
+These steps are optional. Help > Run setup again reopens the walkthrough.
+Start Here.txt provides instructions for assisted setup and maintenance.
 
-Help > Report an issue creates a report you can copy into a support message.
-https://dgx.digitalguy.me/contact.html
+EVERYDAY USE
+Use Edit beneath the Dashboard sidebar to manage categories, links and icons.
+For a website, a bare domain such as example.com is accepted and https:// is added.
+Removing a link does not delete its destination. Settings > Appearance controls
+All links visibility, theme and accent. Rapid color changes can leave the Windows
+taskbar icon one color behind; pause between selections to let it refresh.
 
-Requirements: Windows 10 22H2 or Windows 11 on x64, with .NET Framework 4.8+.
-The installer is unsigned. GitHub release SHA-256 checksums identify its files.
+In Tasks, use Edit beneath the sidebar, or beside the tabs in Compact view, to
+manage lists and items. Choose or create TXT/Markdown sources in Settings > Tasks.
+Save connects new selections. Task views reread sources on entry; Refresh beside
+Search rereads the selected list. Checklists checkoffs save automatically.
 
+DATA, UPDATES AND UNINSTALL
+catalog.json and .local live beside the executable. Linked task files stay in
+their selected locations. An upgrade preserves an existing profile: reinstalling
+does not reset it to blank. Back up before moving or manually changing files.
+Uninstall offers Keep settings or Remove settings. Keep is the default. Task
+files and checklist data are preserved even when settings are removed.
+Help > Check for updates checks the latest stable GitHub release; it does not
+install updates. A newer local version is identified without suggesting a downgrade.
+
+HELP AND SUPPORT
+F1 or Help > Help and user guide opens the built-in guide.
+Help > Report an issue shows a notice, then Open GitHub opens the public issue
+page in your browser. Cancel stays in the app. A GitHub account is required to
+submit an issue. Nothing is submitted automatically. Include your app version,
+Windows version and reproduction steps; omit private paths, task contents,
+credentials and configuration backups.
+https://github.com/DGX-Development/Local-Dashboard/issues/new
+
+RIGHTS
 Interface artwork: Microsoft Fluent System Icons, with LICENSE and NOTICE included.
 Application and DGX artwork retain their existing rights; no open-source license
 for the application is granted by this download.

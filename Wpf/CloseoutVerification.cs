@@ -296,6 +296,50 @@ internal sealed partial class WpfDashboard {
     }
 
     void VerifyCloseout(){
+        CloseoutCheck(AppInstanceGate.SameVersion("2.2.8",new Version(2,2,8,0)),"single-instance comparison accepts omitted zero revision");
+        CloseoutCheck(AppInstanceGate.SameVersion("2.2.8.0",new Version(2,2,8,0)),"single-instance comparison accepts exact file version");
+        CloseoutCheck(!AppInstanceGate.SameVersion("2.2.7",new Version(2,2,8,0))&&!AppInstanceGate.SameVersion("2.2.8.1",new Version(2,2,8,0)),"single-instance comparison preserves different version warnings");
+        CloseoutCheck(!AppInstanceGate.SameVersion("unknown",new Version(2,2,8,0)),"single-instance comparison does not accept unknown versions");
+        verifying=nonWindowedVerification=true;
+        CloseoutCheck(AppData.NormalizeWebsiteAddress(" dq.com ")=="https://dq.com"&&
+            AppData.NormalizeWebsiteAddress("example.com/path?q=1#part")=="https://example.com/path?q=1#part"&&
+            AppData.NormalizeWebsiteAddress("http://example.com/path")=="http://example.com/path"&&
+            AppData.NormalizeWebsiteAddress("https://example.com/")=="https://example.com/",
+            "website entry adds HTTPS to bare domains and preserves explicit protocols, paths and query strings");
+        foreach(var badAddress in new[]{"","not a website","javascript:alert(1)","file:///C:/test","https://user:pass@example.com"}){
+            bool rejected=false;try{AppData.NormalizeWebsiteAddress(badAddress);}catch(IOException){rejected=true;}
+            CloseoutCheck(rejected,"invalid website address rejected: "+badAddress);
+        }
+        var alignmentPanel=new StackPanel();
+        var alignmentText=new TextBox{Text="Example",Tag="example.com"};
+        var alignmentCombo=new ComboBox{ItemsSource=new[]{"Example"},SelectedIndex=0};
+        alignmentPanel.Children.Add(alignmentText);alignmentPanel.Children.Add(alignmentCombo);
+        Capture(alignmentPanel,Path.Combine(profile,"form-alignment.png"),500,150);
+        var selection=(FrameworkElement)alignmentCombo.Template.FindName("SelectionText",alignmentCombo);
+        double textOrigin=alignmentText.GetRectFromCharacterIndex(0).X;
+        double selectionOrigin=selection.TranslatePoint(new Point(0,0),alignmentCombo).X;
+        CloseoutCheck(Math.Abs(textOrigin-selectionOrigin)<=1,"dropdown selection and text input share the same visible left inset");
+        var dropdownSurface=(Border)alignmentCombo.Template.FindName("DropdownSurface",alignmentCombo);
+        CloseoutCheck(dropdownSurface.BorderThickness==new Thickness(0)&&dropdownSurface.CornerRadius.TopLeft==10&&
+            dropdownSurface.Effect is System.Windows.Media.Effects.DropShadowEffect,
+            "all dropdowns share the rounded borderless menu surface and shadow");
+        CloseoutCheck(((SolidColorBrush)Find<Menu>("AppMenu").Background).Color.A==0,
+            "menu and window actions share one continuous window background");
+        alignmentText.Text="";alignmentPanel.UpdateLayout();
+        var placeholder=(TextBlock)alignmentText.Template.FindName("InputPlaceholder",alignmentText);
+        CloseoutCheck(placeholder.Text=="example.com"&&placeholder.Visibility==Visibility.Visible,"empty website field displays placeholder without storing it as input");
+        alignmentText.Text="dq.com";alignmentPanel.UpdateLayout();
+        CloseoutCheck(placeholder.Visibility==Visibility.Collapsed,"typed website text hides the placeholder");
+        var issuePresenter=presentDialog;string openedIssue=null;
+        try{
+            presentDialog=dialog=>{ClickIn((UIElement)dialog.Content,"Open GitHub");dialog.Close();return true;};
+            ShowReportIssue(address=>openedIssue=address);
+            CloseoutCheck(openedIssue=="https://github.com/DGX-Development/Local-Dashboard/issues/new","issue handoff opens only the product new-issue URL after confirmation");
+            openedIssue=null;
+            presentDialog=dialog=>{dialog.Close();return false;};
+            ShowReportIssue(address=>openedIssue=address);
+            CloseoutCheck(openedIssue==null,"canceling the issue handoff does not launch a browser");
+        }finally{presentDialog=issuePresenter;}
         verifying=nonWindowedVerification=true;window.Left=100;window.Top=100;
         var presenter=presentDialog;
         try{
@@ -317,6 +361,30 @@ internal sealed partial class WpfDashboard {
                 "full pane keeps balanced content margins with the scrollbar near the window edge ("+main.Margin.Left+", "+rightInset+")");
             rows.Children.Clear();
             try{
+                var scrollBody=new Border{Height=30};
+                var sharedScroll=new ScrollViewer{Content=scrollBody,VerticalScrollBarVisibility=ScrollBarVisibility.Auto};
+                var scrollHost=new Grid{Resources=window.Resources};scrollHost.Children.Add(sharedScroll);
+                Capture(scrollHost,Path.Combine(profile,"shared-scroll-short.png"),400,240);
+                double sharedWidth=scrollBody.ActualWidth;
+                var sharedBar=(System.Windows.Controls.Primitives.ScrollBar)sharedScroll.Template.FindName("PART_VerticalScrollBar",sharedScroll);
+                CloseoutCheck(sharedBar.Visibility==Visibility.Hidden&&sharedBar.ActualWidth==17,"shared dialog scrolling reserves the same hidden 17-DIP lane ("+sharedBar.Visibility+", "+sharedBar.ActualWidth+", width="+sharedBar.Width+", min="+sharedBar.MinWidth+", style="+(sharedBar.Style==null?"null":"set")+", "+sharedScroll.ViewportWidth+")");
+                scrollBody.Height=900;
+                Capture(scrollHost,Path.Combine(profile,"shared-scroll-long.png"),400,240);
+                CloseoutCheck(sharedBar.Visibility==Visibility.Visible&&Math.Abs(sharedWidth-scrollBody.ActualWidth)<.5,"shared dialog overflow preserves content width");
+                sharedScroll.ScrollToEnd();scrollHost.UpdateLayout();
+                CloseoutCheck(sharedScroll.VerticalOffset>0,"shared scrollbar retains scrolling commands");
+                sharedScroll.VerticalScrollBarVisibility=ScrollBarVisibility.Disabled;
+                Capture(scrollHost,Path.Combine(profile,"shared-scroll-disabled.png"),400,240);
+                CloseoutCheck(sharedBar.Visibility==Visibility.Collapsed&&scrollBody.ActualWidth>sharedWidth,"disabled scrolling does not reserve an unnecessary lane");
+                var scrollList=new ListBox();scrollHost.Children.Clear();scrollHost.Children.Add(scrollList);
+                scrollList.Items.Add("Short list");Capture(scrollHost,Path.Combine(profile,"shared-list-short.png"),400,240);
+                var listScroll=Visuals<ScrollViewer>(scrollList).First();
+                var listBar=(System.Windows.Controls.Primitives.ScrollBar)listScroll.Template.FindName("PART_VerticalScrollBar",listScroll);
+                double listWidth=listScroll.ViewportWidth;
+                CloseoutCheck(listBar.Visibility==Visibility.Hidden,"list controls inherit the reserved scrollbar lane");
+                for(int i=0;i<40;i++)scrollList.Items.Add("Overflow row "+i);
+                Capture(scrollHost,Path.Combine(profile,"shared-list-long.png"),400,240);
+                CloseoutCheck(listBar.Visibility==Visibility.Visible&&Math.Abs(listWidth-listScroll.ViewportWidth)<.5,"overflowing lists retain their viewport width");
                 presentDialog=dialog=>{
                     var surface=(UIElement)dialog.Content;
                     Capture(surface,Path.Combine(profile,dialog.Title=="Remove item"?"notice-remove.png":"notice-warning.png"),500,250);
@@ -386,6 +454,26 @@ internal sealed partial class WpfDashboard {
             CloseoutCheck(favicon!=null&&WebsiteIcons.Cached(profile,origin)!=null&&requests.SequenceEqual(new[]{
                 "https://sample.invalid/favicon.ico","https://sample.invalid/","https://sample.invalid/actual.png"}),
                 "favicons fall back to the site icon, skip other origins and persist in the cache");
+            Func<int,byte[]> sizedIcon=size=>{
+                using(var stream=new MemoryStream()){
+                    var encoder=new System.Windows.Media.Imaging.PngBitmapEncoder();
+                    encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(System.Windows.Media.Imaging.BitmapSource.Create(
+                        size,size,96,96,PixelFormats.Bgra32,null,new byte[size*size*4],size*4)));
+                    encoder.Save(stream);return stream.ToArray();
+                }
+            };
+            var qualityOrigin=new Uri("https://quality.invalid/");
+            var smallIcon=sizedIcon(16);var largeIcon=sizedIcon(180);
+            WebsiteIcons.Fetch(profile,qualityOrigin,uri=>uri.AbsolutePath=="/favicon.ico"?smallIcon:null);
+            var upgradedIcon=WebsiteIcons.Fetch(profile,qualityOrigin,uri=>uri==qualityOrigin?
+                System.Text.Encoding.UTF8.GetBytes("<link rel='icon' href='/small.png' sizes='16x16'><link rel='apple-touch-icon' href='/large.png' sizes='180x180'>"):
+                uri.AbsolutePath=="/large.png"?largeIcon:smallIcon,refresh:true);
+            CloseoutCheck(upgradedIcon.PixelWidth==128&&WebsiteIcons.Cached(profile,qualityOrigin).PixelWidth==128&&
+                File.ReadAllText(WebsiteIcons.CachePath(profile,qualityOrigin)+".source.txt").Contains("/large.png"),
+                "explicit refresh replaces a tiny cached favicon with a larger touch icon and records its source");
+            CloseoutCheck(WebsiteIcons.Fetch(profile,qualityOrigin,uri=>smallIcon,refresh:true).PixelWidth==128&&
+                WebsiteIcons.Fetch(profile,qualityOrigin,uri=>null,refresh:true).PixelWidth==128,
+                "refresh preserves a better cached image when the site returns a smaller image or fails");
             Select("everyday");
             presentDialog=dialog=>{
                 var surface=(UIElement)dialog.Content;
@@ -394,14 +482,20 @@ internal sealed partial class WpfDashboard {
                 var entry=(Entry)list.SelectedItem;
                 entry.iconGlyph="folder";
                 Visuals<TextBox>(surface).Single(field=>System.Windows.Automation.AutomationProperties.GetName(field)=="Website address").Text=origin.AbsoluteUri;
+                surface.UpdateLayout();
+                var fieldViewport=Visuals<ScrollViewer>(surface).Single(scroll=>Visuals<TextBox>(scroll).Any(field=>System.Windows.Automation.AutomationProperties.GetName(field)=="Website address"));
+                double heightBefore=fieldViewport.ActualHeight;
                 ClickIn(surface,"Use website icon");
+                surface.UpdateLayout();
+                CloseoutCheck(Math.Abs(fieldViewport.ActualHeight-heightBefore)<0.1&&fieldViewport.ScrollableHeight<1,
+                    "website icon status leaves the normal-size field viewport unchanged without adding a scrollbar");
                 Capture(surface,Path.Combine(profile,"website-icon-action.png"),1000,600);
                 var status=Visuals<TextBlock>(surface).Single(label=>label.Text=="Website icon ready. Choose Save to apply it.");
                 var address=Visuals<TextBox>(surface).Single(field=>System.Windows.Automation.AutomationProperties.GetName(field)=="Website address");
-                CloseoutCheck(status.TranslatePoint(new Point(0,0),surface).Y<list.TranslatePoint(new Point(0,0),surface).Y&&
+                CloseoutCheck(status.TranslatePoint(new Point(0,0),surface).Y>list.TranslatePoint(new Point(0,0),surface).Y&&
                     !Visuals<ScrollViewer>(surface).Any(scroll=>scroll.IsAncestorOf(status))&&
                     Visuals<ScrollViewer>(surface).Any(scroll=>scroll.IsAncestorOf(address)),
-                    "icon status stays above the list and outside the independently scrolling fields");
+                    "icon status stays in the footer outside the independently scrolling fields");
                 CloseoutCheck(entry.iconGlyph==null&&Visuals<TextBlock>(surface).Any(label=>label.Text=="Website icon ready. Choose Save to apply it."),
                     "Use website icon previews a found icon and changes the draft selection");
                 dialog.Close();return false;
@@ -795,8 +889,15 @@ internal sealed partial class WpfDashboard {
                 return false;
             };
             ShowHelp();
-            var previousResource=shellBrand.IconResource;ApplyAccent(System.Drawing.Color.FromArgb(245,204,137));
-            CloseoutCheck(shellBrand.IconResource==previousResource&&DashboardData.Hash(File.ReadAllBytes(previousResource.Substring(0,previousResource.Length-2)))==DashboardData.Hash(DashboardBrand.IconBytes(DashboardAccent.Selected)),"accent updates the stable relaunch icon");
+            ApplyAccent(System.Drawing.Color.FromArgb(137,180,245));
+            var previousResource=shellBrand.IconResource;
+            var previousBytes=File.ReadAllBytes(previousResource.Substring(0,previousResource.Length-2));
+            var previousIdentity=shellBrand.AppId;
+            ApplyAccent(System.Drawing.Color.FromArgb(245,204,137));
+            CloseoutCheck(shellBrand.IconResource!=previousResource&&shellBrand.AppId==previousIdentity&&DashboardData.Hash(File.ReadAllBytes(shellBrand.IconResource.Substring(0,shellBrand.IconResource.Length-2)))==DashboardData.Hash(DashboardBrand.IconBytes(DashboardAccent.Selected)),"accent changes the shell icon resource without changing application identity");
+            CloseoutCheck(DashboardData.Hash(File.ReadAllBytes(previousResource.Substring(0,previousResource.Length-2)))==DashboardData.Hash(previousBytes),"previous shell icon resource retains its original pixels");
+            ApplyAccent(System.Drawing.Color.FromArgb(137,180,245));
+            CloseoutCheck(shellBrand.IconResource==previousResource,"returning to an accent reuses its matching shell icon resource");
             ApplyAccent(SavedAccent());
             Console.WriteLine("Closeout checks finished. Offscreen UI and data only; visible taskbar and native placement still require review.");
         }finally{presentDialog=presenter;}

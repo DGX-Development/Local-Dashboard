@@ -6,3 +6,10 @@ Next steps: Measure the bed, sketch the layout, and make a supplies list.
 
 Keep a file like this one click away. In Dashboard, choose Edit, select a
 category, choose Add link, set Opens to Document, and browse to your file.
+
+TRY A SAMPLE TASK LIST
+
+In Tasks, choose Set up this list (or Edit), then open Example tasks.txt
+from this Examples folder and Save. It includes short tasks, expandable
+notes and a later/on-hold item. This is an optional practice file you can
+edit. Your existing task lists are not replaced.

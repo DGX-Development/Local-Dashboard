@@ -7,7 +7,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Reflection;
 
-// Keep the running taskbar and shortcut resource stable across previews and saves.
+// Keep the application identity stable while each accent has its own icon resource.
 internal sealed class ShellTaskbarBrand {
     [StructLayout(LayoutKind.Sequential)] struct PropertyKey { public Guid format;public uint id;internal PropertyKey(uint id){format=new Guid("9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3");this.id=id;} }
     [StructLayout(LayoutKind.Explicit,Size=24)] struct PropVariant { [FieldOffset(0)] public ushort type;[FieldOffset(8)] public IntPtr pointer;
@@ -71,7 +71,9 @@ internal sealed class ShellTaskbarBrand {
         nativeIconPath=path;RefreshKey=path;
         string taskbarPath=Path.Combine(directory,"dashboard-taskbar.ico");
         if(!File.Exists(taskbarPath)||DashboardData.Hash(File.ReadAllBytes(taskbarPath))!=DashboardData.Hash(bytes))DashboardData.Atomic(taskbarPath,bytes);
-        IconResource=taskbarPath+",0";
+        // A direct portable launch may have no shortcut to invalidate. Changing the
+        // resource itself lets the window's shell properties identify the new icon.
+        IconResource=path+",0";
     }
     [DllImport("user32.dll")] static extern IntPtr SendMessage(IntPtr hwnd,uint message,IntPtr wParam,IntPtr lParam);
     [DllImport("user32.dll")] static extern uint GetDpiForWindow(IntPtr hwnd);
@@ -106,5 +108,8 @@ internal sealed class ShellTaskbarBrand {
     }
     internal string Read(IntPtr handle,uint id){var store=Open(handle);try{var key=new PropertyKey(id);PropVariant value;Marshal.ThrowExceptionForHR(store.GetValue(ref key,out value));try{return value.StringValue;}finally{PropVariantClear(ref value);}}finally{Marshal.ReleaseComObject(store);}}
     internal void Dispose(){if(nativeSmall!=null)nativeSmall.Dispose();if(nativeLarge!=null)nativeLarge.Dispose();nativeSmall=nativeLarge=null;nativeKey=null;}
-    internal void Clear(IntPtr handle){if(handle==IntPtr.Zero)return;var store=Open(handle);try{foreach(uint id in new uint[]{5,3,4,2})Set(store,id,null);}finally{Marshal.ReleaseComObject(store);}}
+    internal void Clear(IntPtr handle){
+        if(handle==IntPtr.Zero)return;
+        var store=Open(handle);try{foreach(uint id in new uint[]{5,3,4,2})Set(store,id,null);}finally{Marshal.ReleaseComObject(store);}
+    }
 }

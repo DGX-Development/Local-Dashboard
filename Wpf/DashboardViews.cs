@@ -23,6 +23,8 @@ internal sealed partial class WpfDashboard
     bool exitRequested,doneView; int taskListView;
     bool compactView; Rect fullBounds; WindowState fullState;
     TaskbarRefreshQueue taskbarUpdates;
+    string taskbarButtonResource;
+    System.Windows.Threading.DispatcherTimer taskbarButtonTimer;
     Size compactSize=new Size(580,760);
     System.Windows.Threading.DispatcherTimer refreshTimer;
 
@@ -41,7 +43,22 @@ internal sealed partial class WpfDashboard
             action=>{window.Dispatcher.BeginInvoke(action,System.Windows.Threading.DispatcherPriority.ContextIdle);},
             ()=>refreshShell&&window.IsVisible&&window.ShowInTaskbar,
             ()=>shellBrand.RefreshKey,
-            ()=>UpdateTaskbarSafely(()=>shellBrand.RefreshTaskbar(new WindowInteropHelper(window).Handle)));
+            ()=>UpdateTaskbarSafely(()=>{
+                shellBrand.RefreshTaskbar(new WindowInteropHelper(window).Handle);
+                string resource=shellBrand.RefreshKey;
+                if(taskbarButtonResource!=null&&taskbarButtonResource!=resource){
+                    window.ShowInTaskbar=false;
+                    taskbarButtonTimer=new System.Windows.Threading.DispatcherTimer{Interval=TimeSpan.FromMilliseconds(200)};
+                    taskbarButtonTimer.Tick+=(sender,eventArgs)=>{
+                        taskbarButtonTimer.Stop();taskbarButtonTimer=null;
+                        window.ShowInTaskbar=true;
+                        UpdateTaskbarSafely(()=>shellBrand.Apply(new WindowInteropHelper(window).Handle));
+                        QueueTaskbarRefresh();
+                    };
+                    taskbarButtonTimer.Start();
+                }
+                taskbarButtonResource=resource;
+            }));
         window.SourceInitialized+=(s,e)=>UpdateTaskbarSafely(()=>shellBrand.Apply(new WindowInteropHelper(window).Handle));
         window.Loaded+=(s,e)=>{if(!verifying){FitToWorkArea();if(loadedFullPlacement&&!Compact)window.WindowState=fullState;}QueueTaskbarRefresh();};
         Microsoft.Win32.UserPreferenceChangedEventHandler themeChanged=(s,e)=>window.Dispatcher.BeginInvoke(new Action(()=>{DashboardTheme.Apply(appearancePreviewTheme??preferenceStore.Value.theme);ApplyAccent(appearancePreviewTheme==null?SavedAccent():DashboardAccent.Selected);RefreshGlyphs();foreach(Window open in Application.Current.Windows)ThemeWindow(open,null);}));Microsoft.Win32.SystemEvents.UserPreferenceChanged+=themeChanged;window.Closed+=(s,e)=>Microsoft.Win32.SystemEvents.UserPreferenceChanged-=themeChanged;
@@ -88,7 +105,7 @@ internal sealed partial class WpfDashboard
             if(!e.Cancel&&shellBrand!=null)UpdateTaskbarSafely(()=>shellBrand.Clear(new WindowInteropHelper(window).Handle));
         };
         window.StateChanged+=(s,e)=>{if(window.WindowState==WindowState.Minimized&&preferenceStore.Value.minimizeToTray)Hide();};
-        window.Closed+=(s,e)=>{refreshTimer.Stop();tray.Dispose();foreach(var item in menu.Items.OfType<System.Windows.Forms.ToolStripMenuItem>())if(item.Image!=null)item.Image.Dispose();menu.Dispose();trayIcon.Dispose();shellBrand.Dispose();};
+        window.Closed+=(s,e)=>{if(taskbarButtonTimer!=null){taskbarButtonTimer.Stop();taskbarButtonTimer=null;}refreshTimer.Stop();tray.Dispose();foreach(var item in menu.Items.OfType<System.Windows.Forms.ToolStripMenuItem>())if(item.Image!=null)item.Image.Dispose();menu.Dispose();trayIcon.Dispose();shellBrand.Dispose();};
         refreshTimer=new System.Windows.Threading.DispatcherTimer{Interval=TimeSpan.FromSeconds(2)};
         refreshTimer.Tick+=(s,e)=>{if(reportsWindow!=null&&reportsWindow.IsVisible)RenderReportsInto(reportsRows,false);else if(window.IsVisible&&section=="reports")RenderCompact(false);};
     }
@@ -231,6 +248,7 @@ internal sealed partial class WpfDashboard
             return;
         }
         modes.Children.Clear();
+        Find<StackPanel>("CompactEditActions").Children.Clear();
         foreach(int list in visible)
         {
             string label=list<0?TaskLabel(false):TaskListLabel(list);
@@ -252,8 +270,11 @@ internal sealed partial class WpfDashboard
             modes.Children.Add(button);
         }
         var editActions=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right};
-        editActions.Children.Add(SidebarAction(ActionButton("Edit",()=>Protect(EditTaskWorkspace))));
-        modes.Children.Add(editActions);
+        var edit=SidebarAction(ActionButton("Edit",()=>Protect(EditTaskWorkspace)));
+        if(Compact)edit.Margin=new Thickness(0);
+        editActions.Children.Add(edit);
+        if(Compact)Find<StackPanel>("CompactEditActions").Children.Add(editActions);
+        else modes.Children.Add(editActions);
     }
 
     static DockPanel NoticeContent(string title,string message,out WrapPanel actions)

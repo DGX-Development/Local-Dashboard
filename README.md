@@ -4,27 +4,27 @@
 
 Local Dashboard is a Windows app for opening your project folders, documents and websites, and keeping task lists together in one place.
 
-**Status:** In active development. The latest packaged release is **2.2.7**.
+**Status:** In active development. The latest packaged release is **3.0.0**.
 
-## Install 2.2.7
+## Install 3.0.0
 
-See the [v2.2.7 release](https://github.com/DGX-Development/Local-Dashboard/releases/tag/v2.2.7).
+See the [v3.0.0 release](https://github.com/DGX-Development/Local-Dashboard/releases/tag/v3.0.0).
 
-- [Windows x64 installer](https://github.com/DGX-Development/Local-Dashboard/releases/download/v2.2.7/LocalDashboard-2.2.7-Setup.exe)
-- [Portable ZIP](https://github.com/DGX-Development/Local-Dashboard/releases/download/v2.2.7/LocalDashboard-2.2.7-Portable.zip)
-- [SHA-256 checksums](https://github.com/DGX-Development/Local-Dashboard/releases/download/v2.2.7/SHA256SUMS.txt)
+- [Windows x64 installer](https://github.com/DGX-Development/Local-Dashboard/releases/download/v3.0.0/LocalDashboard-3.0.0-Setup.exe)
+- [Portable ZIP](https://github.com/DGX-Development/Local-Dashboard/releases/download/v3.0.0/LocalDashboard-3.0.0-Portable.zip)
+- [SHA-256 checksums](https://github.com/DGX-Development/Local-Dashboard/releases/download/v3.0.0/SHA256SUMS.txt)
 
 1. Close any older Dashboard copy using **File > Exit**, including copies in the system tray.
 2. Run Setup. It installs for your Windows account under `%LOCALAPPDATA%\Programs\Local Dashboard` by default. A desktop shortcut is optional.
 3. Open **Local Dashboard** from the Start menu and follow the setup walkthrough.
 
-Requirements: Windows 10 22H2 or Windows 11 on x64, with .NET Framework 4.8 or newer. The installer is unsigned. Release files include SHA-256 checksums.
+Requirements: Windows 10 22H2 or Windows 11 on x64, with the .NET 10 runtime included in the self-contained download. The installer is unsigned. Release files include SHA-256 checksums.
 
-The optional portable ZIP contains an `App` folder. Extract it to a writable folder and run `LocalDashboard.exe`; keep all nine supplied files together. Do not run from inside the ZIP.
+The optional portable ZIP contains an `App` folder. Extract it to a writable folder and run `LocalDashboard.exe`; keep all ten supplied files together. Do not run from inside the ZIP.
 
 For an existing configuration, first use **File > Back up configuration** in your previous copy, then choose **Restore from a backup** on the welcome screen of the new copy or **File > Restore configuration** in Dashboard. Review which restored copies Dashboard will use before confirming. An upgrade in the same folder keeps its existing configuration. See the [installation notes](Packaging/INSTALL.txt).
 
-A fresh install shows **Projects**, **Documents**, **Websites** and **All links**, with one generic example in each of the first three categories. Task list 1 is visible. Choosing files for Task list 2 and Task list 3 adds their tabs. Checklists starts empty inside the app's data folder. Existing profiles keep their catalog and saved labels.
+A fresh 3.0.0 release starts with empty **Projects**, **Documents**, **Websites** and **All links** categories, ready for your backup or your own links. Generic files in the supplied Examples folder can be selected manually. Task list 1 is visible. Choosing files for Task list 2 and Task list 3 adds their tabs. Checklists starts empty inside the app's data folder. Existing profiles keep their catalog and saved labels.
 
 ## Screenshots
 
@@ -41,7 +41,7 @@ Local Dashboard 2.2.6 showing the same sample workspace in light and dark appear
 - Shows short task descriptions with longer details collapsed, retaining a full-document view for unfamiliar text formats.
 - Use **Edit** below the Tasks sidebar to add, edit, or remove items and edit whole task documents. Checklists autosaves to its selected file.
 - Provides compact view, on-top behavior, light/dark appearance, accent colors and window preferences.
-- Includes configuration backup/restore, setup, built-in Help and a copyable issue report.
+- Includes configuration backup/restore, setup, built-in Help and a confirmation before opening the public GitHub issue page.
 
 Choose an existing file or create a task file in **Settings > Tasks**. Newly selected files load after **Save**. Task views reload on entry. Use **Refresh** beside Search to reread the current list. Files in locally synchronized folders work like other local files. Use **Help > Check for updates** to find the latest stable release on GitHub.
 
@@ -57,21 +57,21 @@ Version 2.2.0 and later share a single running instance per Windows user. A seco
 
 ## Build from source
 
-The current application is WPF. Use Windows PowerShell or PowerShell 7, the Windows .NET Framework 4.8 compiler, and [Inno Setup](https://jrsoftware.org/isinfo.php). The release installer was built with Inno Setup 7.1.1. No NuGet restore or Node.js dependency is required for this build.
+The current application is WPF. Use Windows PowerShell or PowerShell 7, the .NET 10 SDK, the Windows .NET Framework compiler for the existing icon exporter, and [Inno Setup](https://jrsoftware.org/isinfo.php). The release installer was built with Inno Setup 7.1.1. The SDK restores Windows runtime/reference packs when needed. Node.js is not required.
 
 ```powershell
-& '.\Build-Installer.ps1' -Compiler 'C:\path\to\Inno Setup\ISCC.exe'
+& '.\Build-Installer.ps1' -Compiler 'C:\path\to\Inno Setup\ISCC.exe' -BlankProfile
 ```
 
-The script builds the app, creates an exact nine-file payload with a generic starter catalog, and produces Setup, a portable ZIP and checksums under `.dev\Review\Dashboard21\Navigation219\Release226`. It refuses to overwrite an existing payload; use `-OutputDirectory` with a fresh directory under `.dev\Review` for another build. Local profiles, task files and private development notes are excluded.
+The script builds the app, creates an exact ten-file payload with an empty catalog, and produces Setup, a portable ZIP and checksums under `.dev\Review\Net10\Installer`. It refuses to overwrite an existing payload; use `-OutputDirectory` with a fresh directory under `.dev\Review` for another build. Local profiles, task files and private development notes are excluded.
 
-`Wpf/Build Wpf.ps1` is the explicit-source application build. `Build Dashboard.ps1`, the browser assets and Node scripts remain legacy sources; they are not the 2.2.6 release build path.
+`Wpf/Build Wpf.ps1` is the explicit-source application build. `Build Dashboard.ps1`, the browser assets and Node scripts remain legacy sources; they are not the 3.0.0 release build path.
 
 ## Verification and known limits
 
-The 2.2.6 offscreen checks cover setup, dashboard editing, task refresh, custom icon backup and restore, and live website icon lookup. Live pointer dragging and a full accessibility and DPI review remain pending.
+The automated suites cover setup, dashboard editing, task refresh, backup/restore with embedded custom icons, website icon selection, shared controls and compact layout. Full accessibility and DPI coverage remain incomplete. Rapid accent changes can leave the taskbar icon one color behind; pause between selections to let it refresh.
 
-See [CHANGELOG.md](CHANGELOG.md) for the release changes. Use **Help > Help and user guide** for everyday use, or **Help > Report an issue** to copy a report for [DGX Development support](https://dgx.digitalguy.me/contact.html).
+See [CHANGELOG.md](CHANGELOG.md) for the release changes. Use **Help > Help and user guide** for everyday use, or **Help > Report an issue** to see a notice before opening the [public GitHub issue page](https://github.com/DGX-Development/Local-Dashboard/issues/new). A GitHub account is required to submit an issue. Include the app version, Windows version and reproduction steps; do not post private task contents, personal paths, credentials or backups. Nothing is submitted automatically.
 
 ## Rights and attribution
 

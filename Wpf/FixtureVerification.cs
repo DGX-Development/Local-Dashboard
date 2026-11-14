@@ -47,7 +47,7 @@ internal sealed partial class WpfDashboard
         if(ShellTaskbarBrand.ProcessIdentity()!=shellBrand.AppId)throw new Exception("Process and window taskbar identities differ.");
         if(shellBrand.Read(hwnd,2)!=shellBrand.RelaunchCommand)throw new Exception("Shell relaunch command differs from the selected profile command.");
         if(shellBrand.Read(hwnd,5)!=shellBrand.AppId||shellBrand.Read(hwnd,3)!=shellBrand.IconResource)throw new Exception("Shell taskbar identity or icon resource differs.");
-        var iconPath=shellBrand.IconResource.Substring(0,shellBrand.IconResource.Length-2);if(!File.Exists(iconPath)||Path.GetFileName(iconPath)!="dashboard-taskbar.ico"||DashboardData.Hash(File.ReadAllBytes(iconPath))!=DashboardData.Hash(DashboardBrand.IconBytes(expected)))throw new Exception("The stable relaunch icon does not contain the current accent.");
+        var iconPath=shellBrand.IconResource.Substring(0,shellBrand.IconResource.Length-2);if(!File.Exists(iconPath)||iconPath!=shellBrand.RefreshKey||DashboardData.Hash(File.ReadAllBytes(iconPath))!=DashboardData.Hash(DashboardBrand.IconBytes(expected)))throw new Exception("The relaunch icon does not identify the current accent.");
         Console.WriteLine("Shell taskbar properties read back: "+shellBrand.AppId+" / "+shellBrand.IconResource+". Actual taskbar appearance still requires visual verification.");
         foreach(int kind in new[]{0,1}){
             var handle=SendMessage(hwnd,0x007F,new IntPtr(kind),IntPtr.Zero);if(handle==IntPtr.Zero)throw new Exception("Missing native window icon kind "+kind);

@@ -27,7 +27,7 @@ internal sealed class QuinnSummary {
 }
 
 internal sealed partial class WpfDashboard {
-    // Same native caption colors used by BroadcastForge WindowTheme (Dialogs.cs).
+    // All application windows share the same native caption treatment.
     [System.Runtime.InteropServices.DllImport("dwmapi.dll")]
     static extern int DwmSetWindowAttribute(IntPtr handle,int attribute,ref int value,int size);
     static void ThemeWindow(object sender,RoutedEventArgs args){

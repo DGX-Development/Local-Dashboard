@@ -5,10 +5,10 @@
   #error Supply OutputFolder for the installer
 #endif
 #ifndef AppVersion
-  #define AppVersion "2.2.7"
+  #define AppVersion "3.0.0"
 #endif
 #ifndef FileVersion
-  #define FileVersion "2.2.7.0"
+  #define FileVersion "3.0.0.0"
 #endif
 #ifndef WizardLogo
   #error Supply WizardLogo containing the generated header PNG
@@ -52,6 +52,7 @@ Source: "{#PackageDir}\INSTALL.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PackageDir}\Fluent-LICENSE.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PackageDir}\Fluent-NOTICE.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PackageDir}\Examples\Example document.txt"; DestDir: "{app}\Examples"; Flags: onlyifdoesntexist uninsneveruninstall
+Source: "{#PackageDir}\Examples\Example tasks.txt"; DestDir: "{app}\Examples"; Flags: onlyifdoesntexist uninsneveruninstall
 Source: "{#PackageDir}\Examples\Example project\Read me.txt"; DestDir: "{app}\Examples\Example project"; Flags: onlyifdoesntexist uninsneveruninstall
 [Icons]
 Name: "{group}\Local Dashboard"; Filename: "{app}\LocalDashboard.exe"; WorkingDir: "{app}"
@@ -59,13 +60,7 @@ Name: "{autodesktop}\Local Dashboard"; Filename: "{app}\LocalDashboard.exe"; Wor
 [Run]
 Filename: "{app}\LocalDashboard.exe"; Description: "Open Local Dashboard"; Flags: nowait postinstall skipifsilent
 [Code]
-function InitializeSetup: Boolean;
-var Release: Cardinal;
-begin
-  Result := RegQueryDWordValue(HKLM, 'SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full', 'Release', Release) and (Release >= 528040);
-  if not Result then
-    SuppressibleMsgBox('Local Dashboard requires .NET Framework 4.8 or newer. Install it through Windows Update, then run Setup again.', mbError, MB_OK, IDOK);
-end;
+// The self-contained Windows package includes the .NET 10 runtime.
 
 function GetFileAttributes(Path: String): LongInt;
   external 'GetFileAttributesW@kernel32.dll stdcall';

@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.0.0 - 2026-11-13
+
+- Migrates the existing WPF application to self-contained .NET 10 on Windows x64.
+- Preserves existing profiles and older configuration backups; new backups embed readable custom icons and restore their references.
+- Improves website address normalization and icon selection, shared dropdowns, scrolling, custom color sliders and compact task navigation spacing.
+- Updates portable taskbar and tray accent handling. Rapid selections may leave the taskbar icon one color behind while Windows refreshes it.
+- Opens the public GitHub issue page after a brief confirmation and distinguishes a local version newer than the latest stable release.
+- Refreshes setup, Help, installation and support documentation. Fresh release packages start empty for setup or backup restoration.
+
 ## 2.2.7 - 2026-11-13
 
 - Refines the notification-area menu and taskbar icon appearance.

@@ -1,4 +1,4 @@
-param([Parameter(Mandatory)][string]$Compiler,[string]$Version='2.2.6',[string]$OutputDirectory=(Join-Path $PSScriptRoot '.dev\Review\Dashboard21\Navigation219\Release226'))
+param([Parameter(Mandatory)][string]$Compiler,[string]$Version='3.0.0',[string]$OutputDirectory=(Join-Path $PSScriptRoot '.dev\Review\Net10\Installer'),[string]$VerifiedPackage,[string]$DotNet='dotnet',[switch]$BlankProfile)
 $ErrorActionPreference='Stop'
 $root=$PSScriptRoot
 $output=[IO.Path]::GetFullPath($OutputDirectory)
@@ -8,28 +8,36 @@ $build=Join-Path $output 'Build'
 $payload=Join-Path $output 'App'
 if(Test-Path -LiteralPath $payload){throw 'Payload already exists. Choose a fresh output directory to preserve any existing data.'}
 if(!(Test-Path -LiteralPath $Compiler -PathType Leaf)){throw 'Supply the path to Inno Setup ISCC.exe.'}
-& (Join-Path $root 'Wpf\Build Wpf.ps1') -OutputDirectory $build -CanonicalCandidate
-if($LASTEXITCODE -ne 0){throw 'Application compilation failed.'}
+if($VerifiedPackage){
+    $build=[IO.Path]::GetFullPath($VerifiedPackage)
+    if(!$build.StartsWith($review,[StringComparison]::OrdinalIgnoreCase)){throw 'Verified package must stay under .dev/Review.'}
+}else{
+    & (Join-Path $root 'Wpf\Build Wpf.ps1') -OutputDirectory $build -CanonicalCandidate -DotNet $DotNet
+    if($LASTEXITCODE -ne 0){throw 'Application compilation failed.'}
+}
 New-Item -ItemType Directory -Path $payload -Force | Out-Null
-Copy-Item -LiteralPath (Join-Path $build 'LocalDashboard.Wpf.Review.exe') -Destination (Join-Path $payload 'LocalDashboard.exe')
+Copy-Item -LiteralPath (Join-Path $build 'LocalDashboard.exe') -Destination (Join-Path $payload 'LocalDashboard.exe')
 Copy-Item -LiteralPath (Join-Path $build 'local-dashboard.ico') -Destination (Join-Path $payload 'local-dashboard.ico')
-Copy-Item -LiteralPath (Join-Path $root 'catalog.example.json') -Destination (Join-Path $payload 'catalog.json')
+Copy-Item -LiteralPath (Join-Path $root 'Packaging\catalog.json') -Destination (Join-Path $payload 'catalog.json')
+if($BlankProfile){[IO.File]::WriteAllText((Join-Path $payload 'catalog.json'),'[]',[Text.UTF8Encoding]::new($false))}
 Copy-Item -LiteralPath (Join-Path $root 'Packaging\INSTALL.txt') -Destination (Join-Path $payload 'INSTALL.txt')
 Copy-Item -LiteralPath (Join-Path $root 'Artwork\Icons\fluent\LICENSE') -Destination (Join-Path $payload 'Fluent-LICENSE.txt')
 Copy-Item -LiteralPath (Join-Path $root 'Artwork\Icons\fluent\NOTICE') -Destination (Join-Path $payload 'Fluent-NOTICE.txt')
 New-Item -ItemType Directory -Path (Join-Path $payload 'Examples\Example project') -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $root 'Packaging\Examples\Example document.txt') -Destination (Join-Path $payload 'Examples\Example document.txt')
+Copy-Item -LiteralPath (Join-Path $root 'Packaging\Examples\Example tasks.txt') -Destination (Join-Path $payload 'Examples\Example tasks.txt')
 Copy-Item -LiteralPath (Join-Path $root 'Packaging\Examples\Example project\Read me.txt') -Destination (Join-Path $payload 'Examples\Example project\Read me.txt')
 Copy-Item -LiteralPath (Join-Path $root 'Packaging\Start Here.txt') -Destination (Join-Path $payload 'Start Here.txt')
-$expected=@('Start Here.txt','Examples\Example document.txt','Examples\Example project\Read me.txt','LocalDashboard.exe','local-dashboard.ico','catalog.json','INSTALL.txt','Fluent-LICENSE.txt','Fluent-NOTICE.txt')
+$expected=@('Start Here.txt','Examples\Example document.txt','Examples\Example tasks.txt','Examples\Example project\Read me.txt','LocalDashboard.exe','local-dashboard.ico','catalog.json','INSTALL.txt','Fluent-LICENSE.txt','Fluent-NOTICE.txt')
 if(@(Compare-Object $expected @(Get-ChildItem -LiteralPath $payload -File -Recurse | ForEach-Object {$_.FullName.Substring($payload.Length+1)})).Count){throw 'Unexpected payload file.'}
-if((Get-Content -LiteralPath (Join-Path $payload 'catalog.json') -Raw) -cne (Get-Content -LiteralPath (Join-Path $root 'catalog.example.json') -Raw)){throw 'Starter catalog changed.'}
+if($BlankProfile){if((Get-Content -LiteralPath (Join-Path $payload 'catalog.json') -Raw) -cne '[]'){throw 'Blank catalog changed.'}}
+elseif((Get-Content -LiteralPath (Join-Path $payload 'catalog.json') -Raw) -cne (Get-Content -LiteralPath (Join-Path $root 'Packaging\catalog.json') -Raw)){throw 'Starter catalog changed.'}
 $binaryVersion=(Get-Item -LiteralPath (Join-Path $payload 'LocalDashboard.exe')).VersionInfo.FileVersion
 if($Version -ne $binaryVersion -and "$Version.0" -ne $binaryVersion){throw 'Unexpected application version.'}
 & $Compiler ('/DAppVersion='+$Version) ('/DFileVersion='+$binaryVersion) ('/DWizardLogo='+(Join-Path $build 'local-dashboard-wizard.png')) ('/DPackageDir='+$payload) ('/DOutputFolder='+$output) (Join-Path $root 'Packaging\LocalDashboard.iss')
 if($LASTEXITCODE -ne 0){throw 'Installer compilation failed.'}
 $zip=Join-Path $output "LocalDashboard-$Version-Portable.zip"
-Compress-Archive -LiteralPath $payload -DestinationPath $zip
+Compress-Archive -LiteralPath $payload -DestinationPath $zip -Force
 $names=@("LocalDashboard-$Version-Setup.exe","LocalDashboard-$Version-Portable.zip")
 $lines=foreach($name in $names){((Get-FileHash -LiteralPath (Join-Path $output $name)).Hash.ToLowerInvariant())+'  '+$name}
 [IO.File]::WriteAllLines((Join-Path $output 'SHA256SUMS.txt'),$lines,[Text.UTF8Encoding]::new($false))

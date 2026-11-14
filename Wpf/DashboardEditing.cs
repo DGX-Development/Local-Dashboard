@@ -23,7 +23,9 @@ internal sealed partial class WpfDashboard
         var title=new TextBlock{Text="Edit Dashboard",FontSize=27,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,18)};
         DockPanel.SetDock(title,Dock.Top);body.Children.Add(title);
         var footer=new WrapPanel{HorizontalAlignment=HorizontalAlignment.Right};
-        DockPanel.SetDock(footer,Dock.Bottom);body.Children.Add(footer);
+        var footerRow=new DockPanel{Height=40};
+        DockPanel.SetDock(footerRow,Dock.Bottom);body.Children.Add(footerRow);
+        DockPanel.SetDock(footer,Dock.Right);footerRow.Children.Add(footer);
         var left=new Border{Width=306,Padding=new Thickness(0,0,20,0),Margin=new Thickness(0,0,22,12),BorderThickness=new Thickness(0,0,1,0)};
         left.SetResourceReference(Border.BorderBrushProperty,"Theme4A4A4A");
         DockPanel.SetDock(left,Dock.Left);body.Children.Add(left);
@@ -73,8 +75,13 @@ internal sealed partial class WpfDashboard
         var removeLink=StandardAction(new Button{Content="Remove link"});
         linkActions.Children.Add(addLink);linkActions.Children.Add(removeLink);
         var websiteIconStatus=WorkText("");
+        websiteIconStatus.VerticalAlignment=VerticalAlignment.Center;
+        websiteIconStatus.TextWrapping=TextWrapping.NoWrap;
+        websiteIconStatus.TextTrimming=TextTrimming.CharacterEllipsis;
+        websiteIconStatus.Margin=new Thickness(0,0,16,0);
+        websiteIconStatus.SetBinding(TextBlock.ToolTipProperty,new System.Windows.Data.Binding("Text"){Source=websiteIconStatus});
         websiteIconStatus.Visibility=Visibility.Collapsed;
-        DockPanel.SetDock(websiteIconStatus,Dock.Top);right.Children.Add(websiteIconStatus);
+        footerRow.Children.Add(websiteIconStatus);
         var empty=WorkText("");
         DockPanel.SetDock(empty,Dock.Top);right.Children.Add(empty);
         var linkEditor=new Grid();
@@ -159,6 +166,7 @@ internal sealed partial class WpfDashboard
             System.Windows.Automation.AutomationProperties.SetName(location,locationLabel.Text);
             location.Text=target==null?"":target.kind=="web"?target.url:target.path;
             location.IsEnabled=target!=null;
+            location.Tag=target!=null&&target.kind=="web"?"example.com":null;
             browseLocation.Visibility=target!=null&&target.kind!="web"?Visibility.Visible:Visibility.Collapsed;
             useWebsiteIcon.Visibility=target!=null&&target.kind=="web"?Visibility.Visible:Visibility.Collapsed;
         };
@@ -210,6 +218,8 @@ internal sealed partial class WpfDashboard
         useWebsiteIcon.Click+=async(s,e)=>{
             var entry=selected;
             if(entry==null)return;
+            try{if(target!=null&&target.kind=="web")location.Text=AppData.NormalizeWebsiteAddress(location.Text);}
+            catch(IOException error){websiteIconStatus.Text=error.Message;websiteIconStatus.Visibility=Visibility.Visible;return;}
             var origin=WebsiteIcons.TargetOrigin(target);
             websiteIconStatus.Visibility=Visibility.Visible;
             if(origin==null)
@@ -219,10 +229,10 @@ internal sealed partial class WpfDashboard
             }
             int request=++websiteIconRequest;
             var icon=WebsiteIcons.Cached(profile,origin);
-            if(icon==null)
+            if(!nonWindowedVerification||icon==null)
             {
                 websiteIconStatus.Text="Looking for the website icon…";
-                try{icon=await System.Threading.Tasks.Task.Run(()=>WebsiteIcons.Fetch(profile,origin,usePublicIndex:true));}
+                try{icon=await System.Threading.Tasks.Task.Run(()=>WebsiteIcons.Fetch(profile,origin,usePublicIndex:true,refresh:true));}
                 catch(Exception){icon=null;}
                 if((!dialog.IsVisible&&!nonWindowedVerification)||request!=websiteIconRequest||selected!=entry||
                     !Equals(origin,WebsiteIcons.TargetOrigin(target)))return;
@@ -264,6 +274,11 @@ internal sealed partial class WpfDashboard
                 if(!Equals(previous,WebsiteIcons.TargetOrigin(target)))clearWebsiteImage(target);
             }
             else target.path=location.Text.Trim();
+        };
+        location.LostKeyboardFocus+=(s,e)=>{
+            if(target==null||target.kind!="web"||String.IsNullOrWhiteSpace(location.Text))return;
+            try{location.Text=AppData.NormalizeWebsiteAddress(location.Text);}
+            catch(IOException error){websiteIconStatus.Text=error.Message;websiteIconStatus.Visibility=Visibility.Visible;}
         };
         Action refreshEntries=()=>{
             var previous=selected;
@@ -367,6 +382,9 @@ internal sealed partial class WpfDashboard
                 location.Focus();
                 return;
             }
+            foreach(var entry in draft.Entries)
+                foreach(var destination in entry.targets.Where(item=>item.kind=="web"))
+                    destination.url=AppData.NormalizeWebsiteAddress(destination.url);
             DashboardData.SaveDashboardEdit(profile,draft,sidebarStore,snapshot,categoriesChanged?groups:null);
             if(!nonWindowedVerification)dialog.DialogResult=true;
         }))));

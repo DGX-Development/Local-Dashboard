@@ -167,31 +167,22 @@ internal sealed partial class WpfDashboard {
                 if(latest>stableBase){
                     if(DataConfirmation("Check for updates","Update available","Local Dashboard "+latest+" is available.","View release"))
                         Protect(()=>System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(releases+"/tag/"+Uri.EscapeDataString(tag)){UseShellExecute=true}));
-                }else DataConfirmation("Check for updates","You're up to date","Latest stable version: "+latest+".","Close");
+                }else if(stableBase>latest)DataConfirmation("Check for updates","You're running a newer version",
+                    "Installed: "+DisplayVersion()+".\nLatest published stable: "+latest+".\nNo update is needed.","Close");
+                else DataConfirmation("Check for updates","You're up to date","Latest stable version: "+latest+".","Close");
             }
         }catch(Exception){
             DataConfirmation("Check for updates","Couldn't check for updates","GitHub's release information is unavailable. Try again in a moment.","Close");
         }finally{command.IsEnabled=true;}
     }
-    static string ComposeIssueReport(string version,string doing,string expected,string happened){
-        return "Local Dashboard "+version+"\n\nWhat were you doing?\n"+doing+"\n\nWhat did you expect to happen?\n"+expected+"\n\nWhat happened instead?\n"+happened;
-    }
-    void ShowReportIssue(){
-        var root=new DockPanel{Margin=new Thickness(28)};
-        var close=StandardAction(new Button{Content="Close",IsCancel=true,HorizontalAlignment=HorizontalAlignment.Right});DockPanel.SetDock(close,Dock.Bottom);root.Children.Add(close);
-        var body=new StackPanel();body.Children.Add(WorkText("Report an issue",true));
-        body.Children.Add(WorkText("Describe the problem, then copy your report into a message on the DGX Development contact page. Nothing is sent automatically."));
-        string version=DisplayVersion();
-        body.Children.Add(WorkText("Local Dashboard version: "+version));
-        var answers=new List<TextBox>();
-        foreach(string prompt in new[]{"What were you doing?","What did you expect to happen?","What happened instead?"}){
-            var field=new TextBox{AcceptsReturn=true,TextWrapping=TextWrapping.Wrap,Height=76,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,Margin=new Thickness(0,0,0,12)};
-            System.Windows.Automation.AutomationProperties.SetName(field,prompt);
-            var label=new Label{Content=prompt,Target=field,Padding=new Thickness(0,0,0,5)};label.SetResourceReference(Control.ForegroundProperty,"ThemeF2F2F2");body.Children.Add(label);body.Children.Add(field);answers.Add(field);
-        }
-        body.Children.Add(SourceAction("Copy report",()=>Protect(()=>Clipboard.SetText(ComposeIssueReport(version,answers[0].Text,answers[1].Text,answers[2].Text)))));
-        body.Children.Add(WebsiteLink("Open DGX Development contact page",SupportWebsite));
-        root.Children.Add(new ScrollViewer{Content=body,VerticalScrollBarVisibility=ScrollBarVisibility.Auto});presentDialog(Dialog("Report an issue",640,700,root));
+    const string IssueWebsite="https://github.com/DGX-Development/Local-Dashboard/issues/new";
+    void ShowReportIssue(Action<string> openPage=null){
+        if(ShowNotice(window,"Report an issue",
+            "Open Local Dashboard's GitHub issue page in your browser. A GitHub account is required to submit an issue. Local Dashboard will stay open.","Open GitHub"))
+            Protect(()=>{
+                if(openPage!=null)openPage(IssueWebsite);
+                else System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(IssueWebsite){UseShellExecute=true});
+            });
     }
     static void WaitForAppearancePreview(){var frame=new DispatcherFrame();var timer=new DispatcherTimer{Interval=TimeSpan.FromMilliseconds(180)};timer.Tick+=(s,e)=>{timer.Stop();frame.Continue=false;};timer.Start();Dispatcher.PushFrame(frame);}
     void VerifyPolishBehavior(){

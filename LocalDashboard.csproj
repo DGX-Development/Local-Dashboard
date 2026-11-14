@@ -1,0 +1,79 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <StartupObject>WpfDashboard</StartupObject>
+    <AssemblyName>LocalDashboard</AssemblyName>
+    <DefineConstants>WPF_REBUILD;WPF_CANONICAL;NET10_MIGRATION</DefineConstants>
+    <ApplicationIcon>dist/icons/local-dashboard.ico</ApplicationIcon>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <!-- Legacy WinForms helpers are constructed in code, never by the designer. -->
+    <NoWarn>$(NoWarn);WFO1000</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="LocalDashboard.cs" />
+    <Compile Include="AgentStatus.cs" />
+    <Compile Include="DashboardControls.cs" />
+    <Compile Include="CurrentWork.cs" />
+    <Compile Include="DashboardInformation.cs" />
+    <Compile Include="SidebarEditor.cs" />
+    <Compile Include="ReorderDrag.cs" />
+    <Compile Include="WindowSettings.cs" />
+    <Compile Include="CatalogEditor.cs" />
+    <Compile Include="Wpf/DashboardBrand.cs" />
+    <Compile Include="Wpf/TaskbarRefreshQueue.cs" />
+    <Compile Include="Wpf/TaskbarShortcutIcons.cs" />
+    <Compile Include="Wpf/CloseoutVerification.cs" />
+    <Compile Include="Wpf/WpfDashboard.cs" />
+    <Compile Include="Wpf/AppInstanceGate.cs" />
+    <Compile Include="Wpf/DashboardViews.cs" />
+    <Compile Include="Wpf/DashboardEditing.cs" />
+    <Compile Include="Wpf/WebsiteIcons.cs" />
+    <Compile Include="Wpf/FixtureVerification.cs" />
+    <Compile Include="Wpf/WorkExperience.cs" />
+    <Compile Include="Wpf/ShellTaskbarBrand.cs" />
+    <Compile Include="Wpf/TaskReportsWindow.cs" />
+    <Compile Include="Wpf/LayoutVerification.cs" />
+    <Compile Include="Wpf/DashboardData.cs" />
+    <Compile Include="Wpf/DataWindows.cs" />
+    <Compile Include="Wpf/DataVerification.cs" />
+    <Compile Include="Wpf/WorkSources.cs" />
+    <Compile Include="Wpf/WorkSourceWindows.cs" />
+    <Compile Include="Wpf/WorkSourceVerification.cs" />
+    <Compile Include="Wpf/ReviewLinks.cs" />
+    <Compile Include="Wpf/ReviewLinkVerification.cs" />
+    <Compile Include="Wpf/CloudSources.cs" />
+    <Compile Include="Wpf/ProviderAuth.cs" />
+    <Compile Include="Wpf/ProviderWindows.cs" />
+    <Compile Include="Wpf/ProviderVerification.cs" />
+    <Compile Include="Wpf/DashboardTheme.cs" />
+    <Compile Include="Wpf/PolishedExperience.cs" />
+    <Compile Include="Wpf/CommandGlyphs.cs" />
+    <Compile Include="Wpf/ExplorerFolder.cs" />
+    <Compile Include="Wpf/TaskLocations.cs" />
+    <Compile Include="Wpf/BrandPresentation.cs" />
+    <Compile Include="Wpf/ClarityExperience.cs" />
+    <Compile Include="Wpf/SafeBackups.cs" />
+    <Compile Include="Wpf/SetupExperience.cs" />
+    <Compile Include="Wpf/NextVerification.cs" />
+    <Compile Include="Wpf/ReadableTasks.cs" />
+    <Compile Include="Wpf/TaskListExperience.cs" />
+    <Compile Include="Wpf/TaskWorkspaceEditor.cs" />
+    <Compile Include="Wpf/TaskListVerification.cs" />
+    <Compile Include="Wpf/PersonalTaskEditing.cs" />
+    <Compile Include="Wpf/PersonalTaskEditorWindow.cs" />
+    <Compile Include="Wpf/LegacyJson.cs" />
+    <EmbeddedResource Include="Wpf/ForgePresentation.xaml" LogicalName="ForgePresentation.xaml" />
+    <EmbeddedResource Include="Wpf/Shell.xaml" LogicalName="Shell.xaml" />
+    <EmbeddedResource Include="Packaging/Start Here.txt" LogicalName="Dashboard.StartHere" />
+    <EmbeddedResource Include="dist/icons/local-dashboard.svg" LogicalName="DashboardBrand.svg" />
+    <EmbeddedResource Include="Artwork/Icons/fluent/LICENSE" LogicalName="Fluent.LICENSE" />
+    <EmbeddedResource Include="Artwork/Icons/fluent/NOTICE" LogicalName="Fluent.NOTICE" />
+    <EmbeddedResource Include="Wpf/FluentPicker.tsv" LogicalName="Fluent.Picker" />
+  </ItemGroup>
+</Project>

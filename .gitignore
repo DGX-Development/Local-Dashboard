@@ -31,3 +31,7 @@
 /Start Local Dashboard.cmd
 /Start Local Dashboard.vbs
 /native.test.cjs
+
+# .NET SDK intermediate output
+/bin/
+/obj/

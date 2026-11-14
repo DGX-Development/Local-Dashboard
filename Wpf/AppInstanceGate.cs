@@ -22,6 +22,13 @@ internal sealed class AppInstanceGate : IDisposable {
         return owned;
     }
     internal void RequestActivation(){Activate.Set();}
+    internal static bool SameVersion(string running,Version current){
+        Version parsed;
+        return current!=null&&Version.TryParse(running,out parsed)&&
+            parsed.Major==current.Major&&parsed.Minor==current.Minor&&
+            Math.Max(0,parsed.Build)==Math.Max(0,current.Build)&&
+            Math.Max(0,parsed.Revision)==Math.Max(0,current.Revision);
+    }
     internal static string OtherRunningVersion(bool legacyOnly=false){
         using(var self=Process.GetCurrentProcess()){
             foreach(var process in Process.GetProcesses())using(process){

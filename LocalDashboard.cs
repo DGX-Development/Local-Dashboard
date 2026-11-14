@@ -16,9 +16,9 @@ using System.Windows.Forms;
 [assembly: AssemblyProduct("Local Dashboard")]
 [assembly: AssemblyDescription("Local projects, documents and workflows")]
 #if WPF_REBUILD
-[assembly: AssemblyVersion("2.2.7")]
-[assembly: AssemblyFileVersion("2.2.7")]
-[assembly: AssemblyInformationalVersion("2.2.7")]
+[assembly: AssemblyVersion("3.0.0")]
+[assembly: AssemblyFileVersion("3.0.0")]
+[assembly: AssemblyInformationalVersion("3.0.0")]
 #else
 [assembly: AssemblyVersion("1.5.6.0")]
 [assembly: AssemblyFileVersion("1.5.6.0")]
@@ -46,6 +46,17 @@ internal static class AppData {
     internal static List<Entry> Load(){return ReadEntries(File.ReadAllText(Path.Combine(Root,"catalog.json")));}
     internal static List<Entry> ReadEntries(string json,string catalogRoot=null){var entries=Json.Deserialize<List<Entry>>(json);if(entries==null||entries.Select(e=>e.id).Distinct().Count()!=entries.Count)throw new Exception("The directory contains duplicate or invalid entries.");foreach(var item in entries)foreach(var target in item.targets)if(target.path!=null&&target.path.StartsWith("@app/",StringComparison.Ordinal))target.path=Path.GetFullPath(Path.Combine(catalogRoot??Root,target.path.Substring(5).Replace('/',Path.DirectorySeparatorChar)));foreach(var entry in entries.Where(e=>e.section=="software"||e.section=="website"||e.section=="secondary")){var folder=entry.targets.FirstOrDefault(t=>t.kind=="folder");if(folder!=null&&String.IsNullOrWhiteSpace(entry.displayName))entry.name=Path.GetFileName(Path.GetFullPath(folder.path).TrimEnd(Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar));}foreach(var entry in entries)if(!String.IsNullOrWhiteSpace(entry.displayName))entry.name=entry.displayName;return entries;}
     internal static LinkTarget Resolve(List<Entry> entries,string entryId,string targetId){var entry=entries.FirstOrDefault(e=>e.id==entryId);var target=entry==null?null:entry.targets.FirstOrDefault(t=>t.id==targetId);if(target==null)throw new Exception("This destination is not in the directory.");Validate(target);return target;}
+    internal static string NormalizeWebsiteAddress(string value){
+        string address=(value??"").Trim();
+        if(address.StartsWith("//",StringComparison.Ordinal))address="https:"+address;
+        else if(address.IndexOf("://",StringComparison.Ordinal)<0&&!System.Text.RegularExpressions.Regex.IsMatch(address,@"^[a-zA-Z][a-zA-Z0-9+.-]*:"))address="https://"+address;
+        Uri uri;
+        if(address.Any(Char.IsWhiteSpace)||address.Contains("\\")||!Uri.TryCreate(address,UriKind.Absolute,out uri)||
+            (uri.Scheme!=Uri.UriSchemeHttps&&uri.Scheme!=Uri.UriSchemeHttp)||String.IsNullOrEmpty(uri.Host)||
+            uri.UserInfo.Length!=0||uri.HostNameType==UriHostNameType.Unknown)
+            throw new IOException("Enter a valid website address, such as example.com or https://example.com.");
+        return address;
+    }
     internal static void Validate(LinkTarget target){
         if(target.kind=="web"){Uri uri;if(!Uri.TryCreate(target.url,UriKind.Absolute,out uri)||(uri.Scheme!="https"&&uri.Scheme!="http"))throw new Exception("Unsupported website address.");return;}
         if(target.kind=="folder"){if(!Directory.Exists(target.path))throw new Exception("Folder not found: "+target.path);return;}

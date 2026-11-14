@@ -1,0 +1,26 @@
+# Weekend garden
+
+## Current projects
+
+### Plan the garden
+
+1. Measure the planting area
+   Write down the length and width before choosing plants.
+
+   Notes:
+   Check how much sunlight the area gets in the morning and afternoon.
+   Expand Details in Dashboard to read notes like these.
+
+2. Choose three plants
+   Pick plants that suit the space and available sunlight.
+   Status: Ready to plan.
+   Next: Compare the notes from your measurements.
+
+3. Make a supplies list
+   List the soil, pots and tools you already have before buying anything.
+
+## Later / on hold
+
+4. Consider a rain barrel
+   Leave this for a later project after the garden is established.
+   Status: On hold.

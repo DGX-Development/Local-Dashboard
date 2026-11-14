@@ -54,10 +54,10 @@ internal static class WebsiteIcons
         catch(Exception error){if(!(error is IOException||error is UnauthorizedAccessException||error is NotSupportedException||error is FormatException||error is ArgumentException||error is System.Runtime.InteropServices.COMException))throw;return null;}
     }
 
-    internal static BitmapSource Fetch(string profile,Uri origin,Func<Uri,byte[]> download=null,bool usePublicIndex=false)
+    internal static BitmapSource Fetch(string profile,Uri origin,Func<Uri,byte[]> download=null,bool usePublicIndex=false,bool refresh=false)
     {
         var cached=Cached(profile,origin);
-        if(cached!=null)return cached;
+        if(cached!=null&&!refresh)return cached;
         Uri pageAddress=origin;
         if(download==null)download=uri=>{
             Uri finalAddress;
@@ -67,28 +67,36 @@ internal static class WebsiteIcons
         };
         try
         {
-            var icon=ReadIcon(download(new Uri(origin,"favicon.ico")));
-            if(icon==null)
+            Uri source=new Uri(origin,"favicon.ico");
+            var icon=ReadIcon(download(source));
+            if(Quality(icon)<96)
             {
                 var page=download(origin);
                 if(page!=null)
                 {
                     var html=Encoding.UTF8.GetString(page);
                     int attempts=0;
-                    foreach(Match link in Regex.Matches(html,@"<link\b[^>]*>",RegexOptions.IgnoreCase))
+                    var links=Regex.Matches(html,@"<link\b[^>]*>",RegexOptions.IgnoreCase).Cast<Match>()
+                        .Where(link=>Regex.IsMatch(Attribute(link.Value,"rel"),@"(?:^|\s)(?:icon|apple-touch-icon(?:-precomposed)?)(?:\s|$)",RegexOptions.IgnoreCase))
+                        .OrderByDescending(link=>DeclaredSize(link.Value));
+                    foreach(var link in links)
                     {
-                        var rel=Attribute(link.Value,"rel");
-                        if(!rel.Split((char[])null,StringSplitOptions.RemoveEmptyEntries).Contains("icon",StringComparer.OrdinalIgnoreCase))continue;
                         Uri candidate;
-                        if(!Uri.TryCreate(pageAddress,Attribute(link.Value,"href"),out candidate)||!SameOrigin(pageAddress,candidate))continue;
-                        if(attempts++==3)break;
-                        icon=ReadIcon(download(candidate));
-                        if(icon!=null)break;
+                        if(!Uri.TryCreate(pageAddress,Attribute(link.Value,"href"),out candidate)||
+                            !(SameOrigin(pageAddress,candidate)||(candidate.IsAbsoluteUri&&candidate.Scheme==Uri.UriSchemeHttps&&candidate.UserInfo.Length==0&&CanUsePublicIndex(candidate))))continue;
+                        if(attempts++==6)break;
+                        var found=ReadIcon(download(candidate));
+                        if(Quality(found)>Quality(icon)){icon=found;source=candidate;}
                     }
                 }
             }
-            if(icon==null&&usePublicIndex&&CanUsePublicIndex(origin))
-                icon=ReadIcon(download(new Uri("https://icons.duckduckgo.com/ip3/"+Uri.EscapeDataString(origin.IdnHost)+".ico")));
+            if(Quality(icon)<64&&usePublicIndex&&CanUsePublicIndex(origin))
+            {
+                var fallback=new Uri("https://icons.duckduckgo.com/ip3/"+Uri.EscapeDataString(origin.IdnHost)+".ico");
+                var found=ReadIcon(download(fallback));
+                if(Quality(found)>Quality(icon)){icon=found;source=fallback;}
+            }
+            if(Quality(cached)>Quality(icon))return cached;
             if(icon!=null)
             {
                 try
@@ -99,13 +107,25 @@ internal static class WebsiteIcons
                     {
                         encoder.Save(stream);
                         DashboardData.Atomic(CachePath(profile,origin),stream.ToArray());
+                        DashboardData.Atomic(CachePath(profile,origin)+".source.txt",Encoding.UTF8.GetBytes(
+                            source.GetLeftPart(UriPartial.Path)+"\n"+icon.PixelWidth+" x "+icon.PixelHeight+"\n"));
                     }
                 }
                 catch(Exception error){if(!(error is IOException||error is UnauthorizedAccessException))throw;}
             }
             return icon;
         }
-        catch(Exception error){if(!(error is IOException||error is WebException||error is UnauthorizedAccessException||error is ArgumentException))throw;return null;}
+        catch(Exception error){if(!(error is IOException||error is WebException||error is UnauthorizedAccessException||error is ArgumentException))throw;return cached;}
+    }
+
+    static int Quality(BitmapSource icon){return icon==null?0:Math.Min(icon.PixelWidth,icon.PixelHeight);}
+
+    static int DeclaredSize(string tag)
+    {
+        int size=0;
+        foreach(Match match in Regex.Matches(Attribute(tag,"sizes"),@"(\d{1,4})x(\d{1,4})",RegexOptions.IgnoreCase))
+            size=Math.Max(size,Math.Min(Int32.Parse(match.Groups[1].Value),Int32.Parse(match.Groups[2].Value)));
+        return size==0&&Attribute(tag,"rel").IndexOf("apple-touch-icon",StringComparison.OrdinalIgnoreCase)>=0?180:size;
     }
 
     static bool CanUsePublicIndex(Uri origin)
@@ -197,9 +217,10 @@ internal static class WebsiteIcons
     {
         var decoder=BitmapDecoder.Create(stream,BitmapCreateOptions.PreservePixelFormat,BitmapCacheOption.OnDemand);
         var frame=decoder.Frames.Where(item=>item.PixelWidth>0&&item.PixelHeight>0&&item.PixelWidth<=512&&item.PixelHeight<=512)
-            .OrderBy(item=>Math.Abs(Math.Max(item.PixelWidth,item.PixelHeight)-48)).FirstOrDefault();
+            .OrderByDescending(item=>Math.Min(128,Math.Min(item.PixelWidth,item.PixelHeight)))
+            .ThenBy(item=>Math.Max(item.PixelWidth,item.PixelHeight)).FirstOrDefault();
         if(frame==null)return null;
-        double scale=Math.Min(1.0,64.0/Math.Max(frame.PixelWidth,frame.PixelHeight));
+        double scale=Math.Min(1.0,128.0/Math.Max(frame.PixelWidth,frame.PixelHeight));
         var image=new TransformedBitmap(frame,new ScaleTransform(scale,scale));
         var pixels=new FormatConvertedBitmap(image,PixelFormats.Bgra32,null,0);
         int stride=pixels.PixelWidth*4;

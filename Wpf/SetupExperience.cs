@@ -345,6 +345,7 @@ internal sealed partial class WpfDashboard {
         Action suggest=()=>{
             locationLabel.Text=(string)kind.SelectedItem=="Website"?"Website address":(string)kind.SelectedItem;
             browse.Visibility=kindValue()=="web"?Visibility.Collapsed:Visibility.Visible;
+            location.Tag=kindValue()=="web"?"example.com":null;
             System.Windows.Automation.AutomationProperties.SetName(location,locationLabel.Text);
             string preferred=kindValue()=="web"?"everyday":kindValue()=="document"?"documents":"software";
             category.SelectedItem=category.Items.OfType<SidebarItem>().FirstOrDefault(item=>item.id==preferred)
@@ -358,6 +359,7 @@ internal sealed partial class WpfDashboard {
             if(group==null)throw new IOException("Choose a Dashboard category, or add the link later in Edit.");
             if(String.IsNullOrWhiteSpace(name.Text)||String.IsNullOrWhiteSpace(location.Text))throw new IOException("Enter a name and location for your link.");
             string type=kindValue(),address=location.Text.Trim();
+            if(type=="web"){address=AppData.NormalizeWebsiteAddress(address);location.Text=address;}
             var target=new LinkTarget{id="open",kind=type,path=type=="web"?null:address,url=type=="web"?address:null};
             AppData.Validate(target);
             return new Entry{id="setup-draft",name=name.Text.Trim(),section=group.id,targets=new System.Collections.Generic.List<LinkTarget>{target}};

@@ -249,6 +249,7 @@ internal sealed partial class WpfDashboard
         double gutter=rows.Margin.Right+Math.Max(0,scroll.ActualWidth-scroll.ViewportWidth);
         var bar=Find<DockPanel>("SearchBar");bar.Margin=new Thickness(0,12,gutter,14);
         var toolbar=Find<WrapPanel>("CompactToolbar");toolbar.Margin=new Thickness(0,0,gutter,12);
+        Find<DockPanel>("CompactTaskToolbar").Margin=new Thickness(0,0,gutter,0);
     }
 
     void Render()
@@ -266,9 +267,11 @@ internal sealed partial class WpfDashboard
         searchBar.Children.OfType<Button>().Single(button=>Equals(button.Tag,"task-refresh")).Visibility=tasks?Visibility.Visible:Visibility.Collapsed;
         System.Windows.Automation.AutomationProperties.SetName(search,tasks?"Search selected list":"Search all links");
         Find<WrapPanel>("WorkNavigation").Visibility=tasks&&Compact?Visibility.Visible:Visibility.Collapsed;
+        Find<DockPanel>("CompactTaskToolbar").Visibility=tasks&&Compact?Visibility.Visible:Visibility.Collapsed;
         Find<StackPanel>("TaskNavigation").Visibility=tasks&&!Compact?Visibility.Visible:Visibility.Collapsed;
         if(!tasks){
             Find<WrapPanel>("WorkNavigation").Children.Clear();
+            Find<StackPanel>("CompactEditActions").Children.Clear();
             Find<StackPanel>("TaskNavigation").Children.Clear();
         }
         string workspace=section=="software"?"software-folder":section=="website"?"websites-folder":null;
@@ -461,7 +464,7 @@ internal sealed partial class WpfDashboard
                 if(!applicationGate.Acquire()){
                     applicationGate.RequestActivation();
                     string running=AppInstanceGate.OtherRunningVersion();
-                    if(running!=null&&running!=typeof(WpfDashboard).Assembly.GetName().Version.ToString(4))
+                    if(running!=null&&!AppInstanceGate.SameVersion(running,typeof(WpfDashboard).Assembly.GetName().Version))
                         ShowStartupNotice("Local Dashboard "+running+" is already running. Use File > Exit in that app before opening this version.");
                     return 0;
                 }
