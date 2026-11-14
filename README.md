@@ -28,11 +28,11 @@ A fresh 3.0.0 release starts with empty **Projects**, **Documents**, **Websites*
 
 ## Screenshots
 
-Local Dashboard 2.2.6 showing the same sample workspace in light and dark appearance.
+Local Dashboard 3.0.0 showing the same sample projects in light and dark appearance. Examples include folders, notes, and website links.
 
 | Light appearance | Dark appearance |
 | --- | --- |
-| [![Local Dashboard in light appearance](Artwork/Exports/Web/local-dashboard-2.2.6-light-1280x860.png)](Artwork/Exports/Web/local-dashboard-2.2.6-light-1280x860.png) | [![Local Dashboard in dark appearance](Artwork/Exports/Web/local-dashboard-2.2.6-dark-1280x860.png)](Artwork/Exports/Web/local-dashboard-2.2.6-dark-1280x860.png) |
+| [![Local Dashboard in light appearance](Artwork/Exports/Web/local-dashboard-3.0.0-light-1280x860.png)](Artwork/Exports/Web/local-dashboard-3.0.0-light-1280x860.png) | [![Local Dashboard in dark appearance](Artwork/Exports/Web/local-dashboard-3.0.0-dark-1280x860.png)](Artwork/Exports/Web/local-dashboard-3.0.0-dark-1280x860.png) |
 
 ## What it does
 
