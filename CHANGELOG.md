@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.0.3 - 2026-11-15
+
+- Unify setup, Settings, Help, About and confirmation layouts with the shared desktop controls. Setup keeps the same dimensions throughout.
+- Add optional sample content, window-size locking and clearer task-source controls. Settings is available in the top menu.
+- Confirm unsaved dashboard edits before closing and improve editor minimum sizes and checklist filters.
+- Structure Help into readable sections and document taskbar-color recovery: Reset, wait briefly, then select the color again.
+- Preserve portable profiles and configuration backups with custom icons, copied task sources and window preferences.
+
 ## 3.0.1 - 2026-11-14
 
 - Opens compact Tasks at 640 DIPs or wider when needed to fit the task tabs and Edit action.

@@ -1,4 +1,4 @@
-param([Parameter(Mandatory)][string]$Compiler,[string]$Version='3.0.1',[string]$OutputDirectory=(Join-Path $PSScriptRoot '.dev\Review\Net10\Installer'),[string]$VerifiedPackage,[string]$DotNet='dotnet',[switch]$BlankProfile)
+param([Parameter(Mandatory)][string]$Compiler,[string]$Version='3.0.3',[string]$OutputDirectory=(Join-Path $PSScriptRoot '.dev\Review\Net10\Installer'),[string]$VerifiedPackage,[string]$DotNet='dotnet',[switch]$BlankProfile)
 $ErrorActionPreference='Stop'
 $root=$PSScriptRoot
 $output=[IO.Path]::GetFullPath($OutputDirectory)
@@ -6,7 +6,11 @@ $review=[IO.Path]::GetFullPath((Join-Path $root '.dev\Review'))+[IO.Path]::Direc
 if(!$output.StartsWith($review,[StringComparison]::OrdinalIgnoreCase)){throw 'Build output must stay under .dev/Review.'}
 $build=Join-Path $output 'Build'
 $payload=Join-Path $output 'App'
-if(Test-Path -LiteralPath $payload){throw 'Payload already exists. Choose a fresh output directory to preserve any existing data.'}
+if(Test-Path -LiteralPath $payload){
+ $allowedExisting=@('Start Here.txt','Examples\Example document.txt','Examples\Example tasks.txt','Examples\Example project\Read me.txt','LocalDashboard.exe','local-dashboard.ico','catalog.json','INSTALL.txt','Fluent-LICENSE.txt','Fluent-NOTICE.txt','LICENSE.txt','DOTNET-LICENSE.txt','DOTNET-THIRD-PARTY-NOTICES.txt','WINDOWS-DESKTOP-LICENSE.txt')
+ $unexpected=@(Get-ChildItem -LiteralPath $payload -File -Recurse | Where-Object {$_.FullName.Substring($payload.Length+1) -notin $allowedExisting})
+ if($unexpected.Count){throw 'Existing payload contains non-package data. It was left untouched.'}
+}
 if(!(Test-Path -LiteralPath $Compiler -PathType Leaf)){throw 'Supply the path to Inno Setup ISCC.exe.'}
 if($VerifiedPackage){
     $build=[IO.Path]::GetFullPath($VerifiedPackage)
@@ -21,6 +25,7 @@ Copy-Item -LiteralPath (Join-Path $build 'local-dashboard.ico') -Destination (Jo
 Copy-Item -LiteralPath (Join-Path $root 'Packaging\catalog.json') -Destination (Join-Path $payload 'catalog.json')
 if($BlankProfile){[IO.File]::WriteAllText((Join-Path $payload 'catalog.json'),'[]',[Text.UTF8Encoding]::new($false))}
 Copy-Item -LiteralPath (Join-Path $root 'Packaging\INSTALL.txt') -Destination (Join-Path $payload 'INSTALL.txt')
+Copy-Item -LiteralPath (Join-Path $root 'LICENSE') -Destination (Join-Path $payload 'LICENSE.txt')
 Copy-Item -LiteralPath (Join-Path $root 'Artwork\Icons\fluent\LICENSE') -Destination (Join-Path $payload 'Fluent-LICENSE.txt')
 Copy-Item -LiteralPath (Join-Path $root 'Artwork\Icons\fluent\NOTICE') -Destination (Join-Path $payload 'Fluent-NOTICE.txt')
 New-Item -ItemType Directory -Path (Join-Path $payload 'Examples\Example project') -Force | Out-Null
@@ -28,7 +33,10 @@ Copy-Item -LiteralPath (Join-Path $root 'Packaging\Examples\Example document.txt
 Copy-Item -LiteralPath (Join-Path $root 'Packaging\Examples\Example tasks.txt') -Destination (Join-Path $payload 'Examples\Example tasks.txt')
 Copy-Item -LiteralPath (Join-Path $root 'Packaging\Examples\Example project\Read me.txt') -Destination (Join-Path $payload 'Examples\Example project\Read me.txt')
 Copy-Item -LiteralPath (Join-Path $root 'Packaging\Start Here.txt') -Destination (Join-Path $payload 'Start Here.txt')
-$expected=@('Start Here.txt','Examples\Example document.txt','Examples\Example tasks.txt','Examples\Example project\Read me.txt','LocalDashboard.exe','local-dashboard.ico','catalog.json','INSTALL.txt','Fluent-LICENSE.txt','Fluent-NOTICE.txt')
+$assets=Get-Content -Raw (Join-Path $root 'obj/project.assets.json') | ConvertFrom-Json
+$notices=@(@{Package='Microsoft.NETCore.App.Runtime.win-x64';Source='LICENSE.TXT';Destination='DOTNET-LICENSE.txt'},@{Package='Microsoft.NETCore.App.Runtime.win-x64';Source='THIRD-PARTY-NOTICES.TXT';Destination='DOTNET-THIRD-PARTY-NOTICES.txt'},@{Package='Microsoft.WindowsDesktop.App.Runtime.win-x64';Source='LICENSE';Destination='WINDOWS-DESKTOP-LICENSE.txt'})
+foreach($notice in $notices){$download=@($assets.project.frameworks.PSObject.Properties.Value.downloadDependencies | Where-Object name -eq $notice.Package)[0];$packVersion=$download.version.Trim('[',']').Split(',')[0].Trim();$source=$null;foreach($folder in $assets.packageFolders.PSObject.Properties.Name){$candidate=Join-Path $folder ($notice.Package.ToLowerInvariant()+'/'+$packVersion+'/'+$notice.Source);if(Test-Path -LiteralPath $candidate){$source=$candidate;break}};if(!$source){throw 'Missing runtime notice'};Copy-Item -LiteralPath $source -Destination (Join-Path $payload $notice.Destination)}
+$expected=@('Start Here.txt','Examples\Example document.txt','Examples\Example tasks.txt','Examples\Example project\Read me.txt','LocalDashboard.exe','local-dashboard.ico','catalog.json','INSTALL.txt','Fluent-LICENSE.txt','Fluent-NOTICE.txt','LICENSE.txt','DOTNET-LICENSE.txt','DOTNET-THIRD-PARTY-NOTICES.txt','WINDOWS-DESKTOP-LICENSE.txt')
 if(@(Compare-Object $expected @(Get-ChildItem -LiteralPath $payload -File -Recurse | ForEach-Object {$_.FullName.Substring($payload.Length+1)})).Count){throw 'Unexpected payload file.'}
 if($BlankProfile){if((Get-Content -LiteralPath (Join-Path $payload 'catalog.json') -Raw) -cne '[]'){throw 'Blank catalog changed.'}}
 elseif((Get-Content -LiteralPath (Join-Path $payload 'catalog.json') -Raw) -cne (Get-Content -LiteralPath (Join-Path $root 'Packaging\catalog.json') -Raw)){throw 'Starter catalog changed.'}
@@ -37,7 +45,7 @@ if($Version -ne $binaryVersion -and "$Version.0" -ne $binaryVersion){throw 'Unex
 & $Compiler ('/DAppVersion='+$Version) ('/DFileVersion='+$binaryVersion) ('/DWizardLogo='+(Join-Path $build 'local-dashboard-wizard.png')) ('/DPackageDir='+$payload) ('/DOutputFolder='+$output) (Join-Path $root 'Packaging\LocalDashboard.iss')
 if($LASTEXITCODE -ne 0){throw 'Installer compilation failed.'}
 $zip=Join-Path $output "LocalDashboard-$Version-Portable.zip"
-Compress-Archive -LiteralPath $payload -DestinationPath $zip -Force
+Compress-Archive -LiteralPath @((Get-ChildItem -LiteralPath $payload -Force).FullName) -DestinationPath $zip -Force
 $names=@("LocalDashboard-$Version-Setup.exe","LocalDashboard-$Version-Portable.zip")
 $lines=foreach($name in $names){((Get-FileHash -LiteralPath (Join-Path $output $name)).Hash.ToLowerInvariant())+'  '+$name}
 [IO.File]::WriteAllLines((Join-Path $output 'SHA256SUMS.txt'),$lines,[Text.UTF8Encoding]::new($false))

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using System.Windows;
@@ -11,7 +11,7 @@ internal sealed partial class WpfDashboard {
     void ShowReports(){
         if(reportsWindow!=null){reportsWindow.Activate();return;}
         var layout=new DockPanel{Margin=new Thickness(28)};
-        var title=new TextBlock{Text="Agent updates",FontSize=27,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,18)};DockPanel.SetDock(title,Dock.Top);layout.Children.Add(title);
+        var title=new TextBlock{Text="Agent updates",FontSize=DgxUi.EditorTitleSize,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,18)};DockPanel.SetDock(title,Dock.Top);layout.Children.Add(title);
         var footer=new Grid{Margin=new Thickness(0,14,0,0)};DockPanel.SetDock(footer,Dock.Bottom);layout.Children.Add(footer);
         var refresh=CompactAction(ActionButton("Refresh",()=>RenderReportsInto(reportsRows,true)));refresh.HorizontalAlignment=HorizontalAlignment.Left;refresh.Margin=new Thickness(0);footer.Children.Add(refresh);
         var close=StandardAction(new Button{Content="Close",IsCancel=true,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,14,0,0)});close.Margin=new Thickness(0);footer.Children.Add(close);

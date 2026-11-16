@@ -53,11 +53,13 @@
     <Compile Include="Wpf/ProviderVerification.cs" />
     <Compile Include="Wpf/DashboardTheme.cs" />
     <Compile Include="Wpf/PolishedExperience.cs" />
+    <Compile Include="Wpf/DgxAboutView.cs" />
     <Compile Include="Wpf/CommandGlyphs.cs" />
     <Compile Include="Wpf/ExplorerFolder.cs" />
     <Compile Include="Wpf/TaskLocations.cs" />
     <Compile Include="Wpf/BrandPresentation.cs" />
     <Compile Include="Wpf/ClarityExperience.cs" />
+    <Compile Include="Wpf/WindowSizeLock.cs" />
     <Compile Include="Wpf/SafeBackups.cs" />
     <Compile Include="Wpf/SetupExperience.cs" />
     <Compile Include="Wpf/NextVerification.cs" />

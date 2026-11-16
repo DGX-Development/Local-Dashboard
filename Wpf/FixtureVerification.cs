@@ -115,7 +115,7 @@ internal sealed partial class WpfDashboard
         var itemRow=rows.Children.OfType<StackPanel>().Single(row=>Equals(row.Tag,"checkoff-fixture"));
         Visuals<CheckBox>(itemRow).Single().IsChecked=true;
         if(store.Read().items.Single(i=>i.id=="checkoff-fixture").state!="done")throw new Exception("Completion failed.");
-        Visuals<Button>(rows).Single(x=>x.Content is string&&((string)x.Content).StartsWith("Done (")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Visuals<System.Windows.Controls.Primitives.ButtonBase>(rows).Single(x=>x.Content is string&&((string)x.Content).StartsWith("Done (")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         itemRow=rows.Children.OfType<StackPanel>().Single(row=>Equals(row.Tag,"checkoff-fixture"));
         Visuals<CheckBox>(itemRow).Single().IsChecked=false;
         if(store.Read().items.Single(i=>i.id=="checkoff-fixture").state!="current")throw new Exception("Restore failed.");
@@ -147,7 +147,7 @@ internal sealed partial class WpfDashboard
         if(button!=null)button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         else ClickIn(rows,label);
     }
-    static void ClickIn(DependencyObject root,string label){Visuals<Button>(root).Single(b=>Equals(b.Content,label)).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));}
+    static void ClickIn(DependencyObject root,string label){Visuals<System.Windows.Controls.Primitives.ButtonBase>(root).Single(b=>Equals(b.Content,label)).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));}
     void AuditHeader(){
         Panel panel=Compact?(Panel)Find<WrapPanel>("CompactToolbar"):Find<StackPanel>("FullWindowActions");
         var actions=panel.Children.OfType<Button>().ToArray();

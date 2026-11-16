@@ -23,7 +23,7 @@ internal sealed class QuinnSummary {
             else if(raw.StartsWith(" ")&&line.Length>0){if(field=="status")item.Status+=" "+line;else if(field=="next")item.Next+=" "+line;}
         }return result;
     }
-    internal static string Short(string value,int limit){if(String.IsNullOrWhiteSpace(value))return "Not supplied in the work list.";if(value.Length<=limit)return value;int cut=value.LastIndexOf(' ',limit);return value.Substring(0,cut>limit/2?cut:limit).TrimEnd()+"â€¦";}
+    internal static string Short(string value,int limit){if(String.IsNullOrWhiteSpace(value))return "Not supplied in the work list.";if(value.Length<=limit)return value;int cut=value.LastIndexOf(' ',limit);return value.Substring(0,cut>limit/2?cut:limit).TrimEnd()+"…";}
 }
 
 internal sealed partial class WpfDashboard {
@@ -51,7 +51,7 @@ internal sealed partial class WpfDashboard {
         ((TextBlock)((DockPanel)button.Content).Children[1]).FontWeight=active?FontWeights.SemiBold:FontWeights.Normal;
         System.Windows.Automation.AutomationProperties.SetItemStatus(button,active?"Current workspace":"");
     }
-    static Border WorkRule(){var line=new Border{Height=1,Margin=new Thickness(0,5,0,10)};line.SetResourceReference(Border.BackgroundProperty,"Theme444444");return line;}
+    static Border WorkRule(){var line=new Border{Height=1,Margin=new Thickness(0,16,0,16)};line.SetResourceReference(Border.BackgroundProperty,"Theme444444");return line;}
     Button HeaderAction(string text,string glyph,Action action,Button supplied=null){var button=supplied??new Button();button.Click+=(s,e)=>action();var group=new StackPanel{Orientation=Orientation.Horizontal,VerticalAlignment=VerticalAlignment.Center};var image=GlyphImage(glyph);image.Margin=new Thickness(0,0,7,0);image.VerticalAlignment=VerticalAlignment.Center;group.Children.Add(image);group.Children.Add(new TextBlock{Text=text,VerticalAlignment=VerticalAlignment.Center});button.Content=group;button.HorizontalAlignment=HorizontalAlignment.Left;button.VerticalContentAlignment=VerticalAlignment.Center;button.HorizontalContentAlignment=HorizontalAlignment.Center;button.Padding=new Thickness(11,0,11,0);button.Height=36;button.Margin=new Thickness(0,0,7,8);System.Windows.Automation.AutomationProperties.SetName(button,text);return button;}
     void FitToWorkArea(){
         var handle=new System.Windows.Interop.WindowInteropHelper(window).Handle;
@@ -145,10 +145,9 @@ internal sealed partial class WpfDashboard {
         try{ChecklistLocation.RequireAvailable(profile);store=new ChecklistStore(ChecklistLocation.PathFor(profile),entries);document=store.Read();}catch(Exception error){UpdateTaskPromptButton(null,null);rows.Children.Add(WorkText("Checklist unavailable. "+error.Message));return;}
         string query=search.Text.Trim();
         var matchingItems=document.items.Where(i=>MatchesTaskSearch(query,i.title,i.details)).ToList();
-        var tabs=new WrapPanel();
-        foreach(bool done in new[]{false,true}){bool selected=done;var tab=SourceAction((done?"Done":"Current")+" ("+matchingItems.Count(i=>(i.state=="done")==done)+")",()=>{doneView=selected;RenderCompact(true);});SetNavigationSelected(tab,done==doneView);tabs.Children.Add(tab);}
-        UpdateTaskPromptButton(-1,null);
-        rows.Children.Add(tabs);
+        var labels=new[]{"Current ("+matchingItems.Count(i=>i.state!="done")+")","Done ("+matchingItems.Count(i=>i.state=="done")+")"};
+        var tabs=DgxSegmentedFilter.Create(labels,doneView?1:0,index=>{doneView=index==1;RenderCompact(true);});
+        UpdateTaskPromptButton(-1,null);rows.Children.Add(tabs);
         var selectedItems=matchingItems.Where(i=>(i.state=="done")==doneView).ToList();
         if(selectedItems.Count==0){
             string message=query.Length>0?"No checklist items match your search.":

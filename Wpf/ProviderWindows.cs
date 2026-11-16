@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Threading.Tasks;
 using System.Windows;
@@ -13,7 +13,7 @@ internal sealed partial class WpfDashboard {
         string[] kinds={"google-drive","dropbox","onedrive"};
         var cancellation=new System.Threading.CancellationTokenSource();
         var body=new StackPanel{Margin=new Thickness(0,0,14,0)};
-        body.Children.Add(new TextBlock{Text="Connect an online account",FontSize=22,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,12)});
+        body.Children.Add(new TextBlock{Text="Connect an online account",FontSize=DgxUi.SectionSize,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,12)});
         body.Children.Add(WorkText("Read a file directly from your online account. A file already synced to this computer needs no extra sign-in."));
         body.Children.Add(WorkText("Service",true));
         var provider=new ComboBox{ItemsSource=new[]{"Google Drive","Dropbox","OneDrive"},SelectedIndex=Math.Max(0,Array.IndexOf(kinds,selectedKind))};body.Children.Add(provider);

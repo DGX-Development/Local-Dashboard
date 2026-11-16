@@ -27,7 +27,7 @@ internal static class DataVerification {
         var checklist=new ChecklistStore(Path.Combine(target,".local","current-work.json"),entries);
         var doc=checklist.Upsert(new WorkPatch{expectedRevision=0,id="test-task",title="Preserved personal task"});
         checklist.Complete(doc.revision,"test-task",true);
-        File.WriteAllText(Path.Combine(target,".local","window-preferences.json"),"{\"closeToTray\":true,\"minimizeToTray\":true,\"startWithWindows\":false,\"accentColor\":\"#FF6600\",\"futureSetting\":\"retain\"}");
+        File.WriteAllText(Path.Combine(target,".local","window-preferences.json"),"{\"closeToTray\":true,\"minimizeToTray\":true,\"startWithWindows\":false,\"accentColor\":\"#FF6600\",\"lockWindowSizes\":true,\"dialogSizes\":{\"Edit Dashboard\":[900,600]},\"futureSetting\":\"retain\"}");
         File.WriteAllText(Path.Combine(target,".local","pins.json"),"[\"test-favorite\"]");
         Directory.CreateDirectory(Path.Combine(target,".local","agent-reports"));
         string report=Path.Combine(target,".local","agent-reports","source.json");File.WriteAllText(report,"unchanged independent status");
@@ -51,6 +51,7 @@ internal static class DataVerification {
         var result=checklist.Read();
         Check(result.items.Single().state=="done"&&result.revision>2,"Done state preserved and stale checklist revision invalidated");
         Check(File.ReadAllText(Path.Combine(target,".local","window-preferences.json")).Contains("futureSetting")&&!AppData.Json.Deserialize<WindowPreferences>(File.ReadAllText(Path.Combine(target,".local","window-preferences.json"))).startWithWindows,"unknown settings preserved; import cannot enable Windows startup");
+        var restoredSizes=AppData.Json.Deserialize<WindowPreferences>(File.ReadAllText(Path.Combine(target,".local","window-preferences.json")));Check(restoredSizes.lockWindowSizes==true&&restoredSizes.dialogSizes["Edit Dashboard"][0]==900,"size lock and dialog dimensions survive backup restore");
         Check(File.ReadAllText(report)=="unchanged independent status","participating report bytes unchanged");
         Check(File.ReadAllBytes(migrated).SequenceEqual(original),"managed Agent Work round trip exact");
         Reject(()=>DashboardData.Export(target,Path.Combine(target,"catalog.json")),"cannot export over live catalog");

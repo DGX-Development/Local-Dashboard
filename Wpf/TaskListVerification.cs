@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -250,7 +250,7 @@ internal sealed partial class WpfDashboard {
             taskListView=0;RenderCompact(true);if(heading.Text!=TaskListLabel(0)||Visuals<Button>(rows).Any(b=>Equals(b.Content,"Add task")||Equals(b.Content,"Edit document")||Equals(b.Content,"Edit")))throw new Exception("Task browsing exposes editing controls.");
             taskListView=-1;RenderCompact(true);if(heading.Text!=TaskLabel(false)||ChecklistLocation.Token(ChecklistLocation.PathFor(profile))!=checklistHash)throw new Exception("Checklists label or data preservation failed.");
             SetCompact(true);if(Find<WrapPanel>("CompactToolbar").Children.OfType<Button>().Any(b=>Equals(b.Tag,"work-settings")))throw new Exception("Compact toolbar retained Settings.");SetCompact(false);
-            if(!Visuals<Button>(Find<StackPanel>("SidebarFooter")).Any(b=>System.Windows.Automation.AutomationProperties.GetName(b)=="Settings")||Find<MenuItem>("SettingsMenu")==null)throw new Exception("Permanent Settings routes were lost.");
+            if(Visuals<Button>(Find<StackPanel>("SidebarFooter")).Any(b=>System.Windows.Automation.AutomationProperties.GetName(b)=="Settings")||!Find<Menu>("AppMenu").Items.Contains(Find<MenuItem>("SettingsMenu")))throw new Exception("Permanent Settings routes were lost.");
             if(new System.Windows.Interop.WindowInteropHelper(window).Handle!=IntPtr.Zero)throw new Exception("Editor tests created a native window.");
             Console.WriteLine("Personal editor UI passed: matched headings, Save/Cancel/Add/text editing, retained conflict draft, editable task lists, unchanged checklist, toolbar removal and remaining Settings routes. No native window created.");
         }finally{presentDialog=presenter;taskListView=0;Select("software");}

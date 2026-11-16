@@ -69,7 +69,7 @@ internal sealed partial class WpfDashboard
         });
         Find<MenuItem>("DirectoryMenu").Click+=(s,e)=>Select(DashboardSection());
         Find<MenuItem>("WorkMenu").Click+=(s,e)=>Select("work");
-        string[,] menuIcons={{"RefreshMenu","updates"},{"BackupMenu","config-backup"},{"RestoreMenu","config-restore"},{"SettingsMenu","settings"},{"ExitMenu","exit"},
+        string[,] menuIcons={{"RefreshMenu","updates"},{"BackupMenu","config-backup"},{"RestoreMenu","config-restore"},{"ExitMenu","exit"},
             {"DirectoryMenu","dashboard"},{"CompactMenu","compact"},{"WorkMenu","checklist"},{"TopMenu","pin"},
             {"SetupMenu","setup"},{"GuideMenu","help"},{"CheckUpdatesMenu","updates"},{"ReportIssueMenu","report"},{"AboutMenu","info"}};
         for(int i=0;i<menuIcons.GetLength(0);i++)
@@ -159,11 +159,11 @@ internal sealed partial class WpfDashboard
             navigation.Children.Add(button);
         }
         var editActions=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right};
-        editActions.Children.Add(SidebarAction(ActionButton("Edit",()=>Protect(EditCatalog))));
+        editActions.Children.Add(StandardAction(ActionButton("Edit",()=>Protect(EditCatalog))));
         navigation.Children.Add(editActions);
         var footer=Find<StackPanel>("SidebarFooter");
         footer.Children.Clear();
-        var settingsAction=IconAction("Settings","settings",()=>Protect(Settings));settingsAction.Margin=new Thickness(0);footer.Children.Add(settingsAction);
+        footer.Visibility=Visibility.Collapsed;
 
     }
 
@@ -238,7 +238,7 @@ internal sealed partial class WpfDashboard
             expandedSection=null;
             window.MinWidth=760;window.MinHeight=540;window.Width=fullBounds.Width;window.Height=fullBounds.Height;
             window.Left=fullBounds.Left;window.Top=fullBounds.Top;
-            if(!verifying)FitToWorkArea();window.WindowState=fullState;
+            if(!verifying)FitToWorkArea();window.WindowState=preferenceStore.Value.lockWindowSizes==true?WindowState.Normal:fullState;
         }
         UpdateViewChrome();Render();
     }
@@ -486,7 +486,7 @@ internal sealed partial class WpfDashboard
                     if(!first){(currentWork?workSignal:signal).Set();return 0;}
                     if(!verify&&!layoutOnly&&!verifyIcon)DashboardData.Recover(profile);
                     if(!layoutOnly)ShellTaskbarBrand.InitializeProcess(profile,fixture);
-                    var app=new Application{ShutdownMode=ShutdownMode.OnMainWindowClose};
+                    var app=new Application{ShutdownMode=ShutdownMode.OnMainWindowClose};DgxUi.Install();
                     EventManager.RegisterClassHandler(typeof(Window),FrameworkElement.LoadedEvent,new RoutedEventHandler(ThemeWindow));
                     app.Resources.MergedDictionaries.Add(Load<ResourceDictionary>("ForgePresentation.xaml"));
                     bool firstSetup=!verify&&!layoutOnly&&!verifyIcon&&!verifyIconSave&&NeedsFirstSetup(profile);

@@ -13,6 +13,7 @@ internal sealed partial class WpfDashboard
     void EditCatalog()
     {
         var draft=new CatalogDraft(Path.Combine(profile,"catalog.json"));
+        var initialDraft=AppData.Json.Serialize(draft.Entries);bool saved=false;
         var previousIcons=draft.Entries.ToDictionary(entry=>entry.id,WebsiteIcons.Origin);
         var snapshot=sidebarStore.Read();
         var groups=SidebarStore.Copy(snapshot.Layout);
@@ -20,7 +21,7 @@ internal sealed partial class WpfDashboard
             groups.items.Add(new SidebarItem{id=item.id,label=item.label,icon=item.icon,iconPath=item.iconPath});
         bool categoriesChanged=false;
         var body=new DockPanel{Margin=new Thickness(24)};
-        var title=new TextBlock{Text="Edit Dashboard",FontSize=27,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,18)};
+        var title=new TextBlock{Text="Edit Dashboard",FontSize=DgxUi.EditorTitleSize,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,18)};
         DockPanel.SetDock(title,Dock.Top);body.Children.Add(title);
         var footer=new WrapPanel{HorizontalAlignment=HorizontalAlignment.Right};
         var footerRow=new DockPanel{Height=40};
@@ -34,7 +35,7 @@ internal sealed partial class WpfDashboard
         System.Windows.Automation.AutomationProperties.SetName(picker,"Section");
         var categoryPanel=new DockPanel{Margin=new Thickness(0,0,0,12)};
         left.Child=categoryPanel;
-        var categoryHeading=new TextBlock{Text="Categories",FontSize=22,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,8)};
+        var categoryHeading=new TextBlock{Text="Categories",FontSize=DgxUi.SectionSize,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,8)};
         DockPanel.SetDock(categoryHeading,Dock.Top);
         categoryPanel.Children.Add(categoryHeading);
         var categoryControls=new StackPanel{Margin=new Thickness(0,12,0,0)};
@@ -57,7 +58,7 @@ internal sealed partial class WpfDashboard
         categoryControls.Children.Add(categoryActions);
         var right=new DockPanel{Margin=new Thickness(0,0,0,12)};
         body.Children.Add(right);
-        var linksHeading=new TextBlock{FontSize=22,FontWeight=FontWeights.SemiBold,TextWrapping=TextWrapping.Wrap};
+        var linksHeading=new TextBlock{FontSize=DgxUi.SectionSize,FontWeight=FontWeights.SemiBold,TextWrapping=TextWrapping.Wrap};
         DockPanel.SetDock(linksHeading,Dock.Top);right.Children.Add(linksHeading);
         var feedback=WorkText("");
         var feedbackStyle=new Style(typeof(TextBlock),feedback.Style);
@@ -367,7 +368,7 @@ internal sealed partial class WpfDashboard
         picker.SelectedItem=sections.FirstOrDefault(i=>i.id==section);
         showCategory();
         refreshEntries();
-        footer.Children.Add(StandardAction(ActionButton("Save",()=>Protect(()=>{
+        Action saveDraft=()=>{
             if(categoriesChanged&&groups.items.Any(item=>!SidebarStore.ValidLabel(item.label)))
                 throw new IOException("Enter a category name of 1 to 60 characters.");
             var incomplete=draft.Entries.FirstOrDefault(entry=>!previousIcons.ContainsKey(entry.id)&&entry.targets.Any(destination=>
@@ -380,17 +381,20 @@ internal sealed partial class WpfDashboard
                 feedback.Text=target.kind=="web"?"Enter a website address for this link.":
                     target.kind=="document"?"Choose a document for this link.":"Choose a folder for this link.";
                 location.Focus();
-                return;
+                throw new IOException(feedback.Text);
             }
             foreach(var entry in draft.Entries)
                 foreach(var destination in entry.targets.Where(item=>item.kind=="web"))
                     destination.url=AppData.NormalizeWebsiteAddress(destination.url);
             DashboardData.SaveDashboardEdit(profile,draft,sidebarStore,snapshot,categoriesChanged?groups:null);
-            if(!nonWindowedVerification)dialog.DialogResult=true;
-        }))));
+            saved=true;
+        };
+        footer.Children.Add(StandardAction(ActionButton("Save",()=>Protect(()=>{saveDraft();if(!nonWindowedVerification)dialog.DialogResult=true;}))));
+        dialog.Closing+=(s,e)=>{if(nonWindowedVerification||saved||(!categoriesChanged&&AppData.Json.Serialize(draft.Entries)==initialDraft))return;e.Cancel=!DgxUnsavedChanges.Confirm(dialog,content=>Dialog("Unsaved changes",560,220,content),saveDraft);};
+
         footer.Children.Add(StandardAction(new Button{Content="Cancel",IsCancel=true}));
         dialog.Loaded+=(s,e)=>picker.Focus();
-        if(presentDialog(dialog)==true)
+        if(presentDialog(dialog)==true||saved)
         {
             if(activeCategory!=null&&categoriesChanged)section=activeCategory.id;
             Reload();

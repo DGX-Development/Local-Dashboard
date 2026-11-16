@@ -86,7 +86,7 @@ internal sealed partial class WpfDashboard {
             catch(IOException){currentPath="The saved location is unavailable.";}
             catch(ArgumentException){currentPath="The saved location is unavailable.";}
             catch(InvalidOperationException){currentPath="The saved location is unavailable.";}
-            var checklistLocation=WorkText(currentPath);
+            var checklistLocation=new TextBox{Text=currentPath,IsReadOnly=true,Margin=new Thickness(0)};
             var resetChecklist=SourceAction("Use default checklist",()=>{
                 checklistFile=null;useDefault=true;
                 checklistLocation.Text=ChecklistLocation.DefaultPath(profile)+" will be used after Save.";
@@ -105,11 +105,9 @@ internal sealed partial class WpfDashboard {
             }));
             NameControl(chooseChecklist,"Choose checklist file","choose-checklist-file");
             NameControl(resetChecklist,"Use default checklist","use-default-checklist");
-            AddTaskHeading(body,TaskLabel(false),labels==null?null:labels[3],"checklists");
-            body.Children.Add(checklistLocation);
-            var actions=new WrapPanel();
-            actions.Children.Add(chooseChecklist);actions.Children.Add(resetChecklist);
-            body.Children.Add(actions);
+            var checklistRow=AddTaskHeading(body,TaskLabel(false),labels==null?null:labels[3],"checklists");
+            checklistLocation.Margin=new Thickness(0);checklistRow.Text.Children.Add(checklistLocation);
+            checklistRow.AddAction(chooseChecklist);checklistRow.AddAction(resetChecklist);
         }
         saveSource=()=>{
             foreach(var validate in validateLists)validate();
@@ -141,20 +139,16 @@ internal sealed partial class WpfDashboard {
         return message;
     }
 
-    void AddTaskHeading(StackPanel body,string label,TextBox name,string id)
+    DgxDetailRow AddTaskHeading(StackPanel body,string label,TextBox name,string id)
     {
-        var heading=TaskSourceHeading(label);
-        if(name==null){body.Children.Add(heading);return;}
-        var row=new DockPanel{Margin=new Thickness(0,4,0,4)};
-        var rename=StandardAction(ActionButton("Rename",()=>{name.Visibility=Visibility.Visible;name.Focus();name.SelectAll();}));
-        rename.HorizontalAlignment=HorizontalAlignment.Right;
-        NameControl(rename,"Rename "+label,id+"-rename");
-        DockPanel.SetDock(rename,Dock.Right);row.Children.Add(rename);
-        heading.Margin=new Thickness(0);heading.VerticalAlignment=VerticalAlignment.Center;
-        row.Children.Add(heading);body.Children.Add(row);
-        name.Visibility=Visibility.Collapsed;
-        name.TextChanged+=(sender,args)=>heading.Text=String.IsNullOrWhiteSpace(name.Text)?label:name.Text.Trim();
-        body.Children.Add(name);
+        var row=new DgxDetailRow(label);body.Children.Add(row.Root);
+        if(name!=null){
+            var rename=ActionButton("Rename",()=>{name.Visibility=Visibility.Visible;name.Focus();name.SelectAll();});
+            NameControl(rename,"Rename "+label,id+"-rename");row.AddAction(rename);
+            name.Visibility=Visibility.Collapsed;row.Text.Children.Add(name);
+            name.TextChanged+=(sender,args)=>row.Heading.Text=String.IsNullOrWhiteSpace(name.Text)?label:name.Text.Trim();
+        }
+        return row;
     }
 
     void AddTaskSource(StackPanel body,int index,bool showPreview,TextBox name,bool focus,out Action validate,out Action save)
@@ -166,17 +160,15 @@ internal sealed partial class WpfDashboard {
         bool online=selected!=null&&CloudSources.IsCloud(selected.kind);
         string original=selected==null||online?"":selected.path;
         bool disconnect=false;
-        AddTaskHeading(body,label,name,"task-list-"+(index+1));
-        var location=new TextBox{Text=original,IsReadOnly=true,Margin=new Thickness(0,2,0,8)};
+        var sectionRow=AddTaskHeading(body,label,name,"task-list-"+(index+1));
+        var location=new TextBox{Text=original,IsReadOnly=true,Margin=new Thickness(0)};
         System.Windows.Automation.AutomationProperties.SetName(location,"Task list "+(index+1)+" file location");
         var status=TaskSourceMessage(online?"An online source is selected.":original.Length==0?"No file selected.":"");
-        body.Children.Add(status);
-        body.Children.Add(location);
+        status.Margin=new Thickness(0);sectionRow.Text.Children.Add(status);sectionRow.Text.Children.Add(location);
         location.Visibility=original.Length==0?Visibility.Collapsed:Visibility.Visible;
         var actions=new WrapPanel();
         var preview=TaskSourceMessage("");
-        body.Children.Add(actions);
-        if(showPreview)body.Children.Add(preview);
+        if(showPreview){preview.MaxHeight=20;preview.Margin=new Thickness(0);preview.TextWrapping=TextWrapping.NoWrap;preview.TextTrimming=TextTrimming.CharacterEllipsis;sectionRow.Text.Children.Add(preview);}
         var clear=SourceAction("Disconnect",()=>{disconnect=true;location.Clear();status.Text="The source will be disconnected when you save.";preview.Text="";});
         clear.IsEnabled=selected!=null;
         location.TextChanged+=(sender,args)=>{
@@ -211,7 +203,7 @@ internal sealed partial class WpfDashboard {
         NameControl(choose,"Choose source for "+label,"task-list-"+(index+1)+"-choose-source");
         NameControl(clear,"Disconnect "+label,"task-list-"+(index+1)+"-disconnect");
         choose.Margin=new Thickness(0,0,8,0);clear.Margin=new Thickness(0);
-        actions.Children.Add(choose);actions.Children.Add(clear);
+        sectionRow.AddAction(choose);sectionRow.AddAction(clear);
         if(focus)choose.Loaded+=(sender,args)=>choose.Dispatcher.BeginInvoke(new Action(()=>{
             if(choose.IsVisible){choose.BringIntoView();choose.Focus();}
         }),System.Windows.Threading.DispatcherPriority.Input);
@@ -250,9 +242,9 @@ internal sealed partial class WpfDashboard {
 
     string ChooseTaskSource(Window owner,string label,string current)
     {
-        var body=new StackPanel{Margin=new Thickness(28)};
-        body.Children.Add(new TextBlock{Text=label,FontSize=24,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,16)});
-        var dialog=Dialog("Choose task file",580,370,body);
+        var root=new DockPanel{Margin=new Thickness(28)};var body=new StackPanel();
+        body.Children.Add(new TextBlock{Text=label,FontSize=DgxUi.SectionSize,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,16)});
+        var dialog=Dialog("Choose task file",580,420,root);DgxUi.ConfigureNotice(dialog);
         if(owner!=null&&!nonWindowedVerification)dialog.Owner=owner;
         string file=null;
         var local=SourceAction("Choose existing file…",()=>{
@@ -303,7 +295,7 @@ internal sealed partial class WpfDashboard {
         body.Children.Add(providers);
         var cancel=StandardAction(new Button{Content="Cancel",IsCancel=true,HorizontalAlignment=HorizontalAlignment.Right});
         cancel.Margin=new Thickness(0,18,0,0);
-        body.Children.Add(cancel);
+        DockPanel.SetDock(cancel,Dock.Bottom);root.Children.Add(cancel);root.Children.Add(new ScrollViewer{Content=body,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled});
         return presentDialog(dialog)==true?file:null;
     }
     static FrameworkElement TaskProviderMark(string provider)

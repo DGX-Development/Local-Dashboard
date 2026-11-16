@@ -22,18 +22,13 @@ internal sealed partial class WpfDashboard {
         presentDialog(Dialog("Dashboard data folder",700,460,panel));
     }
     bool DataConfirmation(string title,string heading,string detail,string action,Window owner=null){
-        var content=new DockPanel{Margin=new Thickness(28)};
-        var actions=new WrapPanel{HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,18,0,0)};
-        DockPanel.SetDock(actions,Dock.Bottom);content.Children.Add(actions);
-        var body=new StackPanel();body.Children.Add(new TextBlock{Text=heading,FontSize=24,TextWrapping=TextWrapping.Wrap});body.Children.Add(WorkText(detail));
-        content.Children.Add(new ScrollViewer{VerticalScrollBarVisibility=ScrollBarVisibility.Auto,Content=body});
-        var dialog=Dialog(title,680,360,content);
+        WrapPanel actions;
+        var content=NoticeContent(heading,detail,out actions);
+        var dialog=Dialog(title,520,220,content);ConfigureNotice(dialog);
         if(owner!=null&&!nonWindowedVerification)dialog.Owner=owner;
-        if(action=="Close")actions.Children.Add(StandardAction(new Button{Content="Close",IsCancel=true,IsDefault=true}));
-        else{
-            actions.Children.Add(StandardAction(new Button{Content="Cancel",IsCancel=true}));
-            var confirm=StandardAction(ActionButton(action,()=>dialog.DialogResult=true));actions.Children.Add(confirm);
-        }
+        var dismiss=StandardAction(new Button{Content=action=="Close"?"Close":"Cancel",IsCancel=true,IsDefault=action=="Close"});
+        dismiss.Margin=new Thickness(0);actions.Children.Add(dismiss);
+        if(action!="Close")actions.Children.Add(StandardAction(ActionButton(action,()=>dialog.DialogResult=true)));
         return presentDialog(dialog)==true;
     }
     void BackupConfiguration(){
@@ -105,7 +100,7 @@ internal sealed partial class WpfDashboard {
         string recovery=DashboardData.CreateRestoreRecoveryBackup(profile);
         var selected=choices.Where(choice=>choice.Value.IsChecked==true).Select(choice=>choice.Key).ToArray();
         var restored=DashboardData.RestoreCopies(profile,backup,selected);
-        preferenceStore.Reload();
+        preferenceStore.Reload();ApplyWindowSizeLock();
         pins.Clear();string pinFile=StatePath("pins.json");if(File.Exists(pinFile))pins.UnionWith(AppData.Json.Deserialize<string[]>(File.ReadAllText(pinFile)));
         DashboardTheme.Apply(preferenceStore.Value.theme);Reload();ApplyAccent(SavedAccent());RefreshGlyphs();ThemeWindow(window,null);
         foreach(string role in selected.Where(role=>role!="checklist"))RefreshWorkSource(DashboardData.TaskListIndex(role));

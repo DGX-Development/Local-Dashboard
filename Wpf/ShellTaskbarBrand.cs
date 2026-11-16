@@ -98,6 +98,25 @@ internal sealed class ShellTaskbarBrand {
             Set(store,2,RelaunchCommand);Set(store,4,displayName);Set(store,3,IconResource);Set(store,5,AppId);
         }finally{Marshal.ReleaseComObject(store);}
     }
+    [ComImport,Guid("56FDF342-FD6D-11d0-958A-006097C9A090"),InterfaceType(ComInterfaceType.InterfaceIsIUnknown)] interface ITaskbarList {
+        void HrInit();void AddTab(IntPtr hwnd);void DeleteTab(IntPtr hwnd);void ActivateTab(IntPtr hwnd);void SetActiveAlt(IntPtr hwnd);
+    }
+    System.Windows.Threading.DispatcherTimer buttonRefresh;
+    IntPtr pendingButton;
+    static void SetTaskbarButton(IntPtr handle,bool add){
+        var taskbar=(ITaskbarList)Activator.CreateInstance(Type.GetTypeFromCLSID(new Guid("56FDF344-FD6D-11d0-958A-006097C9A090")));
+        try{taskbar.HrInit();if(add)taskbar.AddTab(handle);else taskbar.DeleteTab(handle);}finally{Marshal.ReleaseComObject(taskbar);}
+    }
+    internal void RefreshButton(IntPtr handle){
+        if(handle==IntPtr.Zero)return;
+        if(buttonRefresh==null){
+            buttonRefresh=new System.Windows.Threading.DispatcherTimer{Interval=TimeSpan.FromMilliseconds(250)};
+            buttonRefresh.Tick+=(s,e)=>{buttonRefresh.Stop();var hwnd=pendingButton;pendingButton=IntPtr.Zero;if(hwnd==IntPtr.Zero)return;try{Apply(hwnd);}finally{SetTaskbarButton(hwnd,true);}};
+        }
+        buttonRefresh.Stop();
+        if(pendingButton==IntPtr.Zero)SetTaskbarButton(handle,false);
+        pendingButton=handle;buttonRefresh.Start();
+    }
     internal void RefreshTaskbar(IntPtr handle){
         if(handle==IntPtr.Zero||IconResource==null)return;
         Apply(handle);RefreshShortcuts();
@@ -107,7 +126,7 @@ internal sealed class ShellTaskbarBrand {
         TaskbarShortcutIcons.Refresh(executable,arguments,AppId,IconResource.Substring(0,IconResource.Length-2),review);
     }
     internal string Read(IntPtr handle,uint id){var store=Open(handle);try{var key=new PropertyKey(id);PropVariant value;Marshal.ThrowExceptionForHR(store.GetValue(ref key,out value));try{return value.StringValue;}finally{PropVariantClear(ref value);}}finally{Marshal.ReleaseComObject(store);}}
-    internal void Dispose(){if(nativeSmall!=null)nativeSmall.Dispose();if(nativeLarge!=null)nativeLarge.Dispose();nativeSmall=nativeLarge=null;nativeKey=null;}
+    internal void Dispose(){if(buttonRefresh!=null)buttonRefresh.Stop();pendingButton=IntPtr.Zero;if(nativeSmall!=null)nativeSmall.Dispose();if(nativeLarge!=null)nativeLarge.Dispose();nativeSmall=nativeLarge=null;nativeKey=null;}
     internal void Clear(IntPtr handle){
         if(handle==IntPtr.Zero)return;
         var store=Open(handle);try{foreach(uint id in new uint[]{5,3,4,2})Set(store,id,null);}finally{Marshal.ReleaseComObject(store);}

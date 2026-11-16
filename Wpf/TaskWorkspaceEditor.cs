@@ -61,27 +61,23 @@ internal sealed partial class WpfDashboard
                 draft.Snapshot=PersonalTextStore.Open(profile,draft.Id);
                 draft.Text=draft.Snapshot.Text;
             }
-        }catch(TaskSourceNotSelectedException){draft.Error="Choose a source to add and edit tasks.";}
+        }catch(TaskSourceNotSelectedException){draft.Error="This list needs a task file. Choose source to create a new file or select an existing one, then Save. Reopen Edit to add tasks.";}
         catch(Exception error){draft.Error=error.Message;}
     }
 
     void PickTaskEditorSource(Window owner,TaskSectionDraft draft)
     {
         if(draft.ItemsChanged)throw new IOException("Save or cancel your item changes before changing this list's source.");
-        var picker=new OpenFileDialog{
-            Title="Choose a source for "+draft.Name,CheckFileExists=true,
-            Filter=draft.Id<0?"Dashboard checklist|*.json":"Text and Markdown|*.txt;*.md"
-        };
-        string current=draft.NewPath??draft.SourcePath;
-        if(File.Exists(current))picker.FileName=current;
-        if(picker.ShowDialog(owner)!=true)return;
+        string current=draft.NewPath??draft.SourcePath;string chosen;
+        if(draft.Id>=0){chosen=ChooseTaskSource(owner,draft.Name,current);if(chosen==null)return;}
+        else{var picker=new OpenFileDialog{Title="Choose a source for "+draft.Name,CheckFileExists=true,Filter="Dashboard checklist|*.json"};if(File.Exists(current))picker.FileName=current;if(picker.ShowDialog(owner)!=true)return;chosen=picker.FileName;}
         if(draft.Id<0){
-            ChecklistLocation.Validate(profile,picker.FileName);
-            new ChecklistStore(picker.FileName,entries).Read();
+            ChecklistLocation.Validate(profile,chosen);
+            new ChecklistStore(chosen,entries).Read();
             draft.ChecklistToken=ChecklistLocation.Token(draft.SourcePath);
-        }else WorkSources.Validate(LocalTaskChoice(picker.FileName));
-        draft.NewPath=String.Equals(draft.SourcePath,picker.FileName,StringComparison.OrdinalIgnoreCase)?null:picker.FileName;
-        draft.NewPathToken=ChecklistLocation.Token(picker.FileName);
+        }else WorkSources.Validate(LocalTaskChoice(chosen));
+        draft.NewPath=String.Equals(draft.SourcePath,chosen,StringComparison.OrdinalIgnoreCase)?null:chosen;
+        draft.NewPathToken=ChecklistLocation.Token(chosen);
     }
 
     void CheckTaskSectionDraft(TaskSectionDraft draft)
@@ -125,8 +121,8 @@ internal sealed partial class WpfDashboard
 
     Window DashboardEditorDialog(string title,UIElement body)
     {
-        return Dialog(title,window.ActualWidth>0?window.ActualWidth:window.Width,
-            window.ActualHeight>0?window.ActualHeight:window.Height,body);
+        var editor=Dialog(title,window.ActualWidth>0?window.ActualWidth:window.Width,
+            window.ActualHeight>0?window.ActualHeight:window.Height,body);DgxEditorLayout.Configure(editor);return editor;
     }
 
     void EditTaskWorkspace()
@@ -136,7 +132,7 @@ internal sealed partial class WpfDashboard
         var drafts=new ObservableCollection<TaskSectionDraft>(TaskTabIds(saved.taskTabOrder).Concat(DefaultTaskTabs).Distinct()
             .Select(id=>new TaskSectionDraft(id,id<0?TaskLabel(false):TaskListLabel(id),hidden.Contains(id))));
         var body=new DockPanel{Margin=new Thickness(24)};
-        var title=new TextBlock{Text="Edit Tasks",FontSize=27,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,18)};
+        var title=new TextBlock{Text="Edit Tasks",FontSize=DgxUi.EditorTitleSize,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,18)};
         DockPanel.SetDock(title,Dock.Top);body.Children.Add(title);
         var footer=new WrapPanel{HorizontalAlignment=HorizontalAlignment.Right};
         DockPanel.SetDock(footer,Dock.Bottom);body.Children.Add(footer);
@@ -145,7 +141,7 @@ internal sealed partial class WpfDashboard
         left.SetResourceReference(Border.BorderBrushProperty,"Theme4A4A4A");
         DockPanel.SetDock(left,Dock.Left);body.Children.Add(left);
         var leftPanel=new DockPanel{Margin=new Thickness(0,0,0,12)};left.Child=leftPanel;
-        var listsTitle=new TextBlock{Text="Lists",FontSize=22,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,8)};
+        var listsTitle=new TextBlock{Text="Lists",FontSize=DgxUi.SectionSize,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,8)};
         DockPanel.SetDock(listsTitle,Dock.Top);leftPanel.Children.Add(listsTitle);
         var listDetails=new StackPanel{Margin=new Thickness(0,12,0,0)};
         DockPanel.SetDock(listDetails,Dock.Bottom);leftPanel.Children.Add(listDetails);
@@ -160,7 +156,7 @@ internal sealed partial class WpfDashboard
         System.Windows.Automation.AutomationProperties.SetName(lists,"Task lists");
         leftPanel.Children.Add(lists);
         var right=new DockPanel{Margin=new Thickness(0,0,0,12)};body.Children.Add(right);
-        var itemsHeading=new TextBlock{FontSize=22,FontWeight=FontWeights.SemiBold,TextWrapping=TextWrapping.Wrap};
+        var itemsHeading=new TextBlock{FontSize=DgxUi.SectionSize,FontWeight=FontWeights.SemiBold,TextWrapping=TextWrapping.Wrap};
         DockPanel.SetDock(itemsHeading,Dock.Top);right.Children.Add(itemsHeading);
         var itemActions=new WrapPanel{Margin=new Thickness(0,8,0,8)};
         DockPanel.SetDock(itemActions,Dock.Top);right.Children.Add(itemActions);
@@ -190,7 +186,7 @@ internal sealed partial class WpfDashboard
             source.ToolTip=path;
             changeSource.Content=path==null?"Choose source…":"Change source…";
             changeSource.IsEnabled=!active.ItemsChanged;
-            visibility.Content=active.Hidden?"Show in Tasks":"Remove from Tasks";
+            visibility.Content=active.Hidden?"Show in Tasks":"Hide from Tasks";
             detail.Text=active.NewPath!=null?"Save to switch to this source.":active.Error??"";
             if(active.Error!=null||active.NewPath!=null)items.ItemsSource=null;
             else if(active.Id<0)items.ItemsSource=new ObservableCollection<TaskEditorItem>(active.Checklist.items.Select(item=>new TaskEditorItem{

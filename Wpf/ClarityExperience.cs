@@ -33,6 +33,7 @@ internal sealed partial class WpfDashboard {
     }
     void SaveWindowBounds(){SaveCompactBounds();SaveFullBounds();}
     void ResetWindowSizes(){
+        var preferences=preferenceStore.Copy();preferences.lockWindowSizes=false;preferences.dialogSizes=new Dictionary<string,double[]>();preferenceStore.Save(preferences,false);ApplyWindowSizeLock();
         var screen=System.Windows.Forms.Screen.FromHandle(new System.Windows.Interop.WindowInteropHelper(window).Handle).WorkingArea;
         var source=PresentationSource.FromVisual(window);var transform=source==null?Matrix.Identity:source.CompositionTarget.TransformFromDevice;
         var start=transform.Transform(new Point(screen.Left,screen.Top));var end=transform.Transform(new Point(screen.Right,screen.Bottom));

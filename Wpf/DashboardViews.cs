@@ -48,20 +48,12 @@ internal sealed partial class WpfDashboard
                 shellBrand.RefreshTaskbar(new WindowInteropHelper(window).Handle);
                 string resource=shellBrand.RefreshKey;
                 if(taskbarButtonResource!=null&&taskbarButtonResource!=resource){
-                    window.ShowInTaskbar=false;
-                    taskbarButtonTimer=new System.Windows.Threading.DispatcherTimer{Interval=TimeSpan.FromMilliseconds(200)};
-                    taskbarButtonTimer.Tick+=(sender,eventArgs)=>{
-                        taskbarButtonTimer.Stop();taskbarButtonTimer=null;
-                        window.ShowInTaskbar=true;
-                        UpdateTaskbarSafely(()=>shellBrand.Apply(new WindowInteropHelper(window).Handle));
-                        QueueTaskbarRefresh();
-                    };
-                    taskbarButtonTimer.Start();
+                    shellBrand.RefreshButton(new WindowInteropHelper(window).Handle);
                 }
                 taskbarButtonResource=resource;
             }));
         window.SourceInitialized+=(s,e)=>UpdateTaskbarSafely(()=>shellBrand.Apply(new WindowInteropHelper(window).Handle));
-        window.Loaded+=(s,e)=>{if(!verifying){FitToWorkArea();if(loadedFullPlacement&&!Compact)window.WindowState=fullState;}QueueTaskbarRefresh();};
+        window.Loaded+=(s,e)=>{if(!verifying){FitToWorkArea();if(loadedFullPlacement&&!Compact)window.WindowState=fullState;}ApplyWindowSizeLock();QueueTaskbarRefresh();};
         Microsoft.Win32.UserPreferenceChangedEventHandler themeChanged=(s,e)=>window.Dispatcher.BeginInvoke(new Action(()=>{DashboardTheme.Apply(appearancePreviewTheme??preferenceStore.Value.theme);ApplyAccent(appearancePreviewTheme==null?SavedAccent():DashboardAccent.Selected);RefreshGlyphs();foreach(Window open in Application.Current.Windows)ThemeWindow(open,null);}));Microsoft.Win32.SystemEvents.UserPreferenceChanged+=themeChanged;window.Closed+=(s,e)=>Microsoft.Win32.SystemEvents.UserPreferenceChanged-=themeChanged;
         window.Activated+=(s,e)=>{
             QueueTaskbarRefresh();
@@ -271,38 +263,28 @@ internal sealed partial class WpfDashboard
             modes.Children.Add(button);
         }
         var editActions=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right};
-        var edit=SidebarAction(ActionButton("Edit",()=>Protect(EditTaskWorkspace)));
+        var edit=StandardAction(ActionButton("Edit",()=>Protect(EditTaskWorkspace)));
         if(Compact)edit.Margin=new Thickness(0);
         editActions.Children.Add(edit);
         if(Compact)Find<StackPanel>("CompactEditActions").Children.Add(editActions);
         else modes.Children.Add(editActions);
     }
 
-    static DockPanel NoticeContent(string title,string message,out WrapPanel actions)
-    {
-        var body=new DockPanel{Margin=new Thickness(24)};
-        var heading=new TextBlock{Text=title,FontSize=22,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,12)};
-        DockPanel.SetDock(heading,Dock.Top);body.Children.Add(heading);
-        actions=new WrapPanel{HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,12,0,0)};
-        DockPanel.SetDock(actions,Dock.Bottom);body.Children.Add(actions);
-        body.Children.Add(new ScrollViewer{Content=WorkText(message),VerticalScrollBarVisibility=ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled});
-        return body;
-    }
-
+    static DockPanel NoticeContent(string title,string message,out WrapPanel actions) => DgxUi.NoticeBody(title,message,out actions);
+    static void ConfigureNotice(Window dialog) => DgxUi.ConfigureNotice(dialog);
     bool ShowNotice(Window owner,string title,string message,string confirm=null)
     {
         WrapPanel actions;
         var body=NoticeContent(title,message,out actions);
-        var dialog=Dialog(title,500,250,body);
+        var dialog=Dialog(title,520,220,body);ConfigureNotice(dialog);
         if(!nonWindowedVerification)dialog.Owner=owner;
         bool accepted=false;
+        var dismiss=StandardAction(new Button{Content=confirm==null?"Close":"Cancel",IsDefault=true,IsCancel=true});
+        dismiss.Margin=new Thickness(0);actions.Children.Add(dismiss);
         if(confirm!=null)actions.Children.Add(StandardAction(ActionButton(confirm,()=>{
             accepted=true;
             if(!nonWindowedVerification)dialog.DialogResult=true;
         })));
-        var dismiss=StandardAction(new Button{Content=confirm==null?"OK":"Cancel",IsDefault=true,IsCancel=true});
-        actions.Children.Add(dismiss);
         dialog.Loaded+=(s,e)=>dismiss.Focus();
         presentDialog(dialog);
         return accepted;
@@ -318,12 +300,13 @@ internal sealed partial class WpfDashboard
         }
         WrapPanel actions;
         var body=NoticeContent("Local Dashboard",message,out actions);
-        var dialog=new Window{Title="Local Dashboard",Width=500,Height=250,MinWidth=380,MinHeight=220,
+        var dialog=new Window{Title="Local Dashboard",Width=520,Height=220,MinWidth=380,MinHeight=0,
             WindowStartupLocation=WindowStartupLocation.CenterScreen,ShowInTaskbar=true,UseLayoutRounding=true,
-            FontFamily=new FontFamily("Segoe UI"),FontSize=14,Content=body};
+            FontFamily=new FontFamily("Segoe UI"),FontSize=DgxUi.BodySize,Content=body};
         dialog.SetResourceReference(Window.BackgroundProperty,"Background");
         dialog.SetResourceReference(Window.ForegroundProperty,"ThemeF2F2F2");
-        var dismiss=StandardAction(new Button{Content="OK",IsDefault=true,IsCancel=true});
+        ConfigureNotice(dialog);
+        var dismiss=StandardAction(new Button{Content="Close",IsDefault=true,IsCancel=true});
         actions.Children.Add(dismiss);
         dialog.SourceInitialized+=(s,e)=>{RemoveDialogMinimize(dialog);dialog.Icon=DialogTitleIcon(dialog);ThemeWindow(dialog,null);};
         dialog.Loaded+=(s,e)=>dismiss.Focus();
@@ -335,13 +318,15 @@ internal sealed partial class WpfDashboard
         var dialog=new Window{Owner=nonWindowedVerification?null:window,Title=title,Width=width,Height=height,
             MinWidth=Math.Min(width,520),MinHeight=Math.Min(height,380),WindowStartupLocation=WindowStartupLocation.CenterOwner,
             ShowInTaskbar=false,UseLayoutRounding=true,FontFamily=window.FontFamily,FontSize=window.FontSize,Icon=DialogTitleIcon(window)};
-        dialog.Resources["DashboardAccent"]=window.Resources["DashboardAccent"];
+        DgxUi.ApplyWindow(dialog);dialog.Resources["DashboardAccent"]=window.Resources["DashboardAccent"];
         dialog.SetResourceReference(Window.BackgroundProperty,"Background");
         var surface=new Border{Child=content};
         surface.SetResourceReference(Border.BackgroundProperty,"Background");
         dialog.Content=surface;
         dialog.SetResourceReference(Window.ForegroundProperty,"ThemeF2F2F2");
         dialog.SourceInitialized+=(s,e)=>{RemoveDialogMinimize(dialog);CenterDialog(dialog);dialog.Icon=DialogTitleIcon(dialog);};
+        dialog.Loaded+=(s,e)=>{if(dialog.SizeToContent==SizeToContent.Height){dialog.Height=dialog.ActualHeight;CenterDialog(dialog);}};
+        RememberDialogSize(dialog);
         dialog.DpiChanged+=(s,e)=>dialog.Icon=DialogTitleIcon(dialog);
         return dialog;
     }
@@ -446,19 +431,20 @@ internal sealed partial class WpfDashboard
     void ShowHelp(string initialTopic,Window owner)
     {
         var panel=new DockPanel{Margin=new Thickness(28)};
+        DgxHelpTypography.Apply(panel);
         var filter=new TextBox();
         System.Windows.Automation.AutomationProperties.SetName(filter,"Search help");
         var label=new TextBlock{Text="Search help"};
         DockPanel.SetDock(label,Dock.Top);panel.Children.Add(label);
         DockPanel.SetDock(filter,Dock.Top);panel.Children.Add(filter);
         var close=StandardAction(new Button{Content="Close",IsCancel=true,HorizontalAlignment=HorizontalAlignment.Right});
-        var actions=new WrapPanel{HorizontalAlignment=HorizontalAlignment.Right};
+        var actions=new WrapPanel{HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,18,0,0)};
         DockPanel.SetDock(actions,Dock.Bottom);panel.Children.Add(actions);
         actions.Children.Add(close);
         var topics=new ListBox{Width=260,Margin=new Thickness(0,0,18,0),
             ItemTemplate=(DataTemplate)System.Windows.Markup.XamlReader.Parse("<DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'><TextBlock Text='{Binding Title}' TextWrapping='Wrap'/></DataTemplate>")};
         DockPanel.SetDock(topics,Dock.Left);panel.Children.Add(topics);
-        var article=new TextBlock{TextWrapping=TextWrapping.Wrap};
+        var article=new DgxHelpArticle();
         panel.Children.Add(new ScrollViewer{Content=article,VerticalScrollBarVisibility=ScrollBarVisibility.Auto});
         topics.SelectionChanged+=(s,e)=>{
             var topic=topics.SelectedItem as DashboardHelp.Topic;

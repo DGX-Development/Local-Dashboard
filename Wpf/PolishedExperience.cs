@@ -37,7 +37,7 @@ internal sealed partial class WpfDashboard {
         var pages=new Grid();var scroll=new ScrollViewer{VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,Content=pages};content.Children.Add(scroll);
         var dialog=Dialog("Local Dashboard settings",780,700,content);
         var appearance=new StackPanel{Margin=new Thickness(0,0,14,0)};
-        appearance.Children.Add(new TextBlock{Text="Appearance",FontSize=22,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,12)});
+        appearance.Children.Add(new TextBlock{Text="Appearance",FontSize=DgxUi.SectionSize,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,12)});
         appearance.Children.Add(WorkText("Changes preview immediately. Save keeps them; Cancel restores your saved appearance."));
         var theme=new ComboBox{ItemsSource=new[]{"System","Light","Dark"},SelectedItem=current.theme??"Dark",Width=240,HorizontalAlignment=HorizontalAlignment.Left};System.Windows.Automation.AutomationProperties.SetName(theme,"Appearance theme");appearance.Children.Add(theme);
         var previewCard=new StackPanel{Margin=new Thickness(18,12,18,12)};
@@ -66,32 +66,9 @@ internal sealed partial class WpfDashboard {
         var personalLabel=NamedField("Task list 2 label",TaskListLabel(1),40);
         var thirdLabel=NamedField("Task list 3 label",TaskListLabel(2),40);
         var checklistLabel=NamedField("Checklist button label",TaskLabel(false),40);
-        var windowOptions=new StackPanel{Margin=new Thickness(0,0,14,0)};windowOptions.Children.Add(new TextBlock{Text="Window & startup",FontSize=22,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,14)});
-        windowOptions.Children.Add(WorkText("Window buttons",true));
-        var close=Option(windowOptions,"Close to the system tray",current.closeToTray);
-        var minimize=Option(windowOptions,"Minimize to the system tray",current.minimizeToTray);
-        windowOptions.Children.Add(WorkText("Use File > Exit to quit Dashboard."));
-        windowOptions.Children.Add(WorkRule());
-        windowOptions.Children.Add(WorkText("Startup",true));
-        var startup=Option(windowOptions,"Start when I sign in to Windows",current.startWithWindows);
-        if(fixture)windowOptions.Children.Add(WorkText("This review profile does not change Windows sign-in."));
-        var startMin=Option(windowOptions,"Start minimized in the system tray",current.startMinimized);
-        windowOptions.Children.Add(WorkRule());
-        windowOptions.Children.Add(WorkText("Window sizes",true));
-        bool resetWindowSizes=false;
-        var resetWindowNote=WorkText("");
-        resetWindowNote.Visibility=Visibility.Collapsed;
-        var resetSizes=StandardAction(ActionButton("Reset window sizes",()=>{}));
-        resetSizes.HorizontalAlignment=HorizontalAlignment.Left;
-        resetSizes.Margin=new Thickness(0,8,0,0);
-        resetSizes.Click+=(s,e)=>{
-            resetWindowSizes=true;
-            resetWindowNote.Text="Click Save to reset both window sizes.";
-            resetWindowNote.Visibility=Visibility.Visible;
-            resetWindowNote.BringIntoView();
-        };
-        windowOptions.Children.Add(resetSizes);
-        windowOptions.Children.Add(resetWindowNote);
+        var windowPage=new DgxWindowSettingsPage("Local Dashboard",current.closeToTray,current.minimizeToTray,current.startWithWindows,current.startMinimized,current.lockWindowSizes==true);
+        var windowOptions=windowPage.Panel;var close=windowPage.CloseToTray;var minimize=windowPage.MinimizeToTray;var startup=windowPage.Startup;var startMin=windowPage.StartMinimized;var lockSizes=windowPage.LockSizes;
+        bool resetWindowSizes=false;windowPage.Reset.Click+=(s,e)=>resetWindowSizes=true;
         appearance.Children.Remove(card);DockPanel.SetDock(card,Dock.Top);content.Children.Insert(2,card);
 
         Action saveSource;var tasks=BuildWorkSource(out saveSource,false,new[]{agentLabel,personalLabel,thirdLabel,checklistLabel},taskList);
@@ -108,7 +85,7 @@ internal sealed partial class WpfDashboard {
             System.Drawing.Color color;if(!DashboardAccent.TryParse(hex.Text,out color))throw new IOException("Enter # followed by six hexadecimal digits.");
             string a=ValidTaskLabel(agentLabel.Text),c=ValidTaskLabel(checklistLabel.Text),p=ValidTaskLabel(personalLabel.Text),third=ValidTaskLabel(thirdLabel.Text);if(new[]{a,c,p,third}.Distinct(StringComparer.CurrentCultureIgnoreCase).Count()!=4)throw new IOException("Give the task sections different labels.");
             applyTimer.Stop();apply();saveSource();QueueTaskbarRefresh(true);
-            preferenceStore.Save(new WindowPreferences{closeToTray=close.IsChecked==true,minimizeToTray=minimize.IsChecked==true,startWithWindows=startup.IsChecked==true,startMinimized=startMin.IsChecked==true,theme=theme.SelectedItem as string,accentColor=DashboardAccent.Format(color),darkAccent=dark,lightAccent=light,agentTasksLabel=a,checklistLabel=c,personalTasksLabel=p,thirdTaskListLabel=third,showAllLinks=showAllLinks.IsChecked==true,showAgentPrompts=agentPrompts.IsChecked==true});
+            preferenceStore.Save(new WindowPreferences{lockWindowSizes=lockSizes.IsChecked==true,closeToTray=close.IsChecked==true,minimizeToTray=minimize.IsChecked==true,startWithWindows=startup.IsChecked==true,startMinimized=startMin.IsChecked==true,theme=theme.SelectedItem as string,accentColor=DashboardAccent.Format(color),darkAccent=dark,lightAccent=light,agentTasksLabel=a,checklistLabel=c,personalTasksLabel=p,thirdTaskListLabel=third,showAllLinks=showAllLinks.IsChecked==true,showAgentPrompts=agentPrompts.IsChecked==true});
             saved=true;
             if(!nonWindowedVerification)dialog.DialogResult=true;
         })));footer.Children.Add(save);footer.Children.Add(StandardAction(new Button{Content="Cancel",IsCancel=true}));
@@ -126,23 +103,15 @@ internal sealed partial class WpfDashboard {
         }
         if(saved&&current.showAllLinks!=preferenceStore.Value.showAllLinks)Reload();
         if(saved&&resetWindowSizes)ResetWindowSizes();
+        if(saved)ApplyWindowSizeLock();
     }
     static double HsvSaturation(System.Drawing.Color c){double max=Math.Max(c.R,Math.Max(c.G,c.B)),min=Math.Min(c.R,Math.Min(c.G,c.B));return max==0?0:(max-min)/max;}
     static System.Drawing.Color FromHsv(double h,double s,double v){double c=v*s,x=c*(1-Math.Abs(h/60%2-1)),m=v-c;double r=0,g=0,b=0;if(h<60){r=c;g=x;}else if(h<120){r=x;g=c;}else if(h<180){g=c;b=x;}else if(h<240){g=x;b=c;}else if(h<300){r=x;b=c;}else{r=c;b=x;}return System.Drawing.Color.FromArgb((int)Math.Round((r+m)*255),(int)Math.Round((g+m)*255),(int)Math.Round((b+m)*255));}
     static void AddLinkFocus(Hyperlink link){link.GotKeyboardFocus+=(s,e)=>link.SetResourceReference(TextElement.BackgroundProperty,"Theme454545");link.LostKeyboardFocus+=(s,e)=>link.ClearValue(TextElement.BackgroundProperty);}
     TextBlock WebsiteLink(string label,string address,bool underline=true){var link=new Hyperlink(new Run(label)){NavigateUri=new Uri(address)};if(!underline)link.TextDecorations=new TextDecorationCollection();AddLinkFocus(link);link.SetResourceReference(TextElement.ForegroundProperty,"DashboardAccent");link.RequestNavigate+=(s,e)=>{e.Handled=true;Protect(()=>System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(address){UseShellExecute=true}));};System.Windows.Automation.AutomationProperties.SetName(link,"Open "+label);return new TextBlock(link){Margin=new Thickness(0,0,0,12)};}
     void ShowAbout(){
-        var root=new DockPanel{Margin=new Thickness(28)};var close=StandardAction(new Button{Content="Close",IsCancel=true,IsDefault=true,HorizontalAlignment=HorizontalAlignment.Right});close.Margin=new Thickness(0,18,0,0);DockPanel.SetDock(close,Dock.Bottom);root.Children.Add(close);
-        var body=new StackPanel();root.Children.Add(new ScrollViewer{Content=body,VerticalScrollBarVisibility=ScrollBarVisibility.Auto});
-        var header=new DockPanel{Margin=new Thickness(0,0,0,24)};header.Children.Add(new Image{Source=window.Icon,Width=64,Height=64,Margin=new Thickness(0,0,18,0)});var identity=new StackPanel{VerticalAlignment=VerticalAlignment.Center};identity.Children.Add(new TextBlock{Text="Local Dashboard",FontSize=25,FontWeight=FontWeights.SemiBold});identity.Children.Add(WorkText("Version "+DisplayVersion()));header.Children.Add(identity);body.Children.Add(header);
-        var card=new StackPanel{Margin=new Thickness(18)};card.Children.Add(WorkText("Your projects and tasks, in one place. Open folders, documents and websites, and keep track of your tasks."));card.Children.Add(new TextBlock{Text="Developed by",Margin=new Thickness(0,16,0,4),FontWeight=FontWeights.SemiBold});card.Children.Add(PublisherLink());card.Children.Add(WebsiteLink("dgx.digitalguy.me",PublisherWebsite,false));var frame=new Border{CornerRadius=new CornerRadius(9),Child=card};frame.SetResourceReference(Border.BackgroundProperty,"Surface");body.Children.Add(frame);
-        var credit=WorkText("Project and website icons belong to their respective owners. Interface icons: Microsoft Fluent System Icons (MIT).");
-        credit.Margin=new Thickness(0,8,0,4);body.Children.Add(credit);
-        var license=SourceAction("View icon license",ShowIconLicense);license.Margin=new Thickness(0,8,0,0);body.Children.Add(license);
-        var dialog=Dialog("About Local Dashboard",560,520,root);
-        ((UIElement)dialog.Content).Measure(new Size(544,Double.PositiveInfinity));
-        dialog.Height=Math.Ceiling(((UIElement)dialog.Content).DesiredSize.Height)+52;
-        presentDialog(dialog);
+        var root=DgxAboutView.Create("Local Dashboard",DisplayVersion(),"Your projects and tasks, in one place. Open folders, documents and websites, and keep track of your tasks.","Licensed under PolyForm Noncommercial 1.0.0. Interface icons: Microsoft Fluent System Icons (MIT). Application icons belong to their respective owners.",window.Icon,PublisherLink(),()=>Protect(()=>System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(PublisherWebsite){UseShellExecute=true})),ShowIconLicense);
+        presentDialog(Dialog("About Local Dashboard",DgxAboutView.Width,DgxAboutView.Height,root));
     }
     static string DisplayVersion(){
         var version=typeof(WpfDashboard).Assembly.GetName().Version;

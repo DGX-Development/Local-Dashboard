@@ -153,7 +153,7 @@ internal sealed partial class WpfDashboard {
             presentDialog=dialog=>{Capture(dialog.Content as UIElement,Path.Combine(profile,"next-license.png"),704,581);if(!Visuals<TextBox>(dialog.Content as DependencyObject).Any(t=>t.Text.Contains("Permission is hereby granted")))throw new Exception("Fluent license not packaged.");dialog.Close();return false;};ShowIconLicense();
             if(NeedsFirstSetup(profile))throw new Exception("Existing profile incorrectly offered first setup.");
             string fresh=Path.Combine(profile,"FreshSetup");Directory.CreateDirectory(fresh);if(!NeedsFirstSetup(fresh))throw new Exception("Fresh profile was not offered setup.");
-            presentDialog=dialog=>{Capture(dialog.Content as UIElement,Path.Combine(profile,"next-setup-finish.png"),744,681);var root=dialog.Content as DependencyObject;ClickIn(root,"Next");ClickIn(root,"Next");ClickIn(root,"Next");ClickIn(root,"Finish");dialog.Close();return true;};ShowSetup();
+            presentDialog=dialog=>{Capture(dialog.Content as UIElement,Path.Combine(profile,"next-setup-finish.png"),744,681);var root=dialog.Content as DependencyObject;ClickIn(root,"Next");ClickIn(root,"Next");ClickIn(root,"Next");ClickIn(root,"Next");ClickIn(root,"Finish");dialog.Close();return true;};ShowSetup();
             if(!File.Exists(setupPath)||sourceBefore!=WorkSources.Token(profile)||locationBefore!=ChecklistLocation.Token(ChecklistLocation.Config(profile)))throw new Exception("Setup Finish failed or changed untouched selections.");
             Console.WriteLine("Next build UI checks passed: Appearance entry, centered swatches, vector publisher, setup navigation/skip and embedded Fluent license.");
         }finally{presentDialog=presenter;}

@@ -205,13 +205,13 @@ internal sealed partial class WpfDashboard {
             "full Tasks uses the sidebar for its lists and the shared search row for Refresh");
         search.Text="added outside";
         CloseoutCheck(rows.Children.OfType<StackPanel>().Any(row=>Equals(row.Tag,"automatic-refresh-test")),"checklist search retains matching items");
-        CloseoutCheck(Visuals<Button>(rows).Any(button=>Equals(button.Content,"Current (1)"))&&
-            Visuals<Button>(rows).Any(button=>Equals(button.Content,"Done (0)")),"checklist tab counts follow search matches");
+        CloseoutCheck(Visuals<System.Windows.Controls.Primitives.ButtonBase>(rows).Any(button=>Equals(button.Content,"Current (1)"))&&
+            Visuals<System.Windows.Controls.Primitives.ButtonBase>(rows).Any(button=>Equals(button.Content,"Done (0)")),"checklist tab counts follow search matches");
         ClickIn(rows,"Current (1)");
         var matchingCheck=Visuals<CheckBox>(rows).Single();
         matchingCheck.IsChecked=true;
-        CloseoutCheck(Visuals<Button>(rows).Any(button=>Equals(button.Content,"Current (0)"))&&
-            Visuals<Button>(rows).Any(button=>Equals(button.Content,"Done (1)")),"filtered counts follow a completed checklist item");
+        CloseoutCheck(Visuals<System.Windows.Controls.Primitives.ButtonBase>(rows).Any(button=>Equals(button.Content,"Current (0)"))&&
+            Visuals<System.Windows.Controls.Primitives.ButtonBase>(rows).Any(button=>Equals(button.Content,"Done (1)")),"filtered counts follow a completed checklist item");
         search.Text="no match fixture";
         CloseoutCheck(!rows.Children.OfType<StackPanel>().Any(row=>Equals(row.Tag,"automatic-refresh-test")),"checklist search hides nonmatching items");
         ((Button)tabs.Children[2]).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -262,7 +262,7 @@ internal sealed partial class WpfDashboard {
             .Where(id=>id.EndsWith("-choose-source")||id=="choose-checklist-file");
         CloseoutCheck(sourceActions.SequenceEqual(new[]{"task-list-1-choose-source","task-list-2-choose-source","task-list-3-choose-source","choose-checklist-file"}),
             "Tasks settings lists Task list 1, 2 and 3 before Checklists");
-        CloseoutCheck(Visuals<TextBlock>(checklistSettings).Any(text=>text.Text==customChecklist),
+        CloseoutCheck(Visuals<TextBox>(checklistSettings).Any(text=>text.IsReadOnly&&text.Text==customChecklist),
             "Tasks settings displays the active checklist path");
         ClickIn(checklistSettings,"Use default checklist");
         saveDefault();
@@ -387,9 +387,10 @@ internal sealed partial class WpfDashboard {
                 CloseoutCheck(listBar.Visibility==Visibility.Visible&&Math.Abs(listWidth-listScroll.ViewportWidth)<.5,"overflowing lists retain their viewport width");
                 presentDialog=dialog=>{
                     var surface=(UIElement)dialog.Content;
+                    CloseoutCheck(dialog.Width==520&&dialog.SizeToContent==SizeToContent.Height,"short notices use shared content-sized geometry");
                     Capture(surface,Path.Combine(profile,dialog.Title=="Remove item"?"notice-remove.png":"notice-warning.png"),500,250);
                     var buttons=Visuals<Button>(surface);
-                    var dismiss=buttons.Single(button=>Equals(button.Content,dialog.Title=="Remove item"?"Cancel":"OK"));
+                    var dismiss=buttons.Single(button=>Equals(button.Content,dialog.Title=="Remove item"?"Cancel":"Close"));
                     CloseoutCheck(dismiss.IsDefault&&dismiss.IsCancel,"notice safely handles Enter and Escape by default");
                     dialog.Close();return false;
                 };
@@ -709,7 +710,10 @@ internal sealed partial class WpfDashboard {
                 Capture(root,Path.Combine(profile,"editor-folder-link.png"),1000,750);
                 string before=DashboardData.Hash(File.ReadAllBytes(catalog));
                 ClickIn(root,"Add link");
-                ClickIn(root,"Save");
+                bool rejectedBlankFolder=false;
+                try { ClickIn(root,"Save"); }
+                catch(IOException error) when(error.Message=="Choose a folder for this link.") { rejectedBlankFolder=true; }
+                CloseoutCheck(rejectedBlankFolder,"blank folder validation rejects saving");
                 CloseoutCheck(Visuals<TextBlock>(root).Any(text=>text.Text=="Choose a folder for this link.")&&
                     DashboardData.Hash(File.ReadAllBytes(catalog))==before,
                     "saving a blank folder link explains what is needed and preserves the draft");
@@ -806,6 +810,24 @@ internal sealed partial class WpfDashboard {
             var completed=checklist.Complete(itemAdded.revision,"delete-test",true);
             var deleted=checklist.Delete(completed.revision,"delete-test");
             CloseoutCheck(deleted.items.All(item=>item.id!="delete-test")&&deleted.revision==completed.revision+1,"checklist can delete a completed item");
+            var sizePreferences=preferenceStore.Copy();
+            presentDialog=dialog=>{var root=dialog.Content as DependencyObject;Capture(dialog.Content as UIElement,Path.Combine(profile,"window-lock.png"),764,661);ClickIn(root,"Window");Visuals<CheckBox>(root).Single(box=>Equals(box.Content,"Lock window sizes")).IsChecked=true;dialog.Close();return false;};Settings();
+            CloseoutCheck(preferenceStore.Value.lockWindowSizes!=true,"Cancel leaves window-size lock unapplied");
+            presentDialog=dialog=>{var root=dialog.Content as DependencyObject;Capture(dialog.Content as UIElement,Path.Combine(profile,"window-lock.png"),764,661);ClickIn(root,"Window");Visuals<CheckBox>(root).Single(box=>Equals(box.Content,"Lock window sizes")).IsChecked=true;ClickIn(root,"Save");dialog.Close();return true;};Settings();
+            preferenceStore.Reload();
+            CloseoutCheck(preferenceStore.Value.lockWindowSizes==true&&window.ResizeMode==ResizeMode.CanMinimize,"Saved size lock persists and preserves main minimize");
+            var lockDialog=Dialog("Size lock verification",700,500,new Grid());RegisterDialogSize(lockDialog);
+            CloseoutCheck(lockDialog.ResizeMode==ResizeMode.NoResize,"Size lock prevents editor resizing");
+            var settingsProbe=Dialog("Local Dashboard settings",780,700,new Grid());RegisterDialogSize(settingsProbe);
+            CloseoutCheck(settingsProbe.ResizeMode==ResizeMode.CanResize,"Settings remains resizable while locked");settingsProbe.Close();
+            SetCompact(true);SetCompact(false);CloseoutCheck(window.ResizeMode==ResizeMode.CanMinimize&&window.WindowState!=WindowState.Maximized,"Compact and full views retain the size lock");
+            var unlock=preferenceStore.Copy();unlock.lockWindowSizes=false;preferenceStore.Save(unlock,false);ApplyWindowSizeLock();
+            CloseoutCheck(window.ResizeMode==ResizeMode.CanResize&&lockDialog.ResizeMode==ResizeMode.CanResize,"Unlock restores resizing");
+            lockDialog.Width=710;lockDialog.Height=510;lockDialog.Close();
+            preferenceStore.Reload();CloseoutCheck(preferenceStore.Value.dialogSizes["Size lock verification"][0]==710,"Dialog dimensions persist");
+            unlock=preferenceStore.Copy();unlock.lockWindowSizes=true;preferenceStore.Save(unlock,false);ApplyWindowSizeLock();ResetWindowSizes();
+            CloseoutCheck(preferenceStore.Value.lockWindowSizes==false&&preferenceStore.Value.dialogSizes.Count==0&&window.ResizeMode==ResizeMode.CanResize,"Reset clears remembered dialog dimensions and unlocks");
+            sizePreferences.lockWindowSizes=false;sizePreferences.dialogSizes=new Dictionary<string,double[]>();preferenceStore.Save(sizePreferences,false);ApplyWindowSizeLock();
             window.Width=1000;window.Height=700;window.Left=100;window.Top=120;
             SetCompact(true);window.Left=320;window.Top=160;window.Width=600;window.Height=610;SetCompact(false);
             CloseoutCheck(window.Left==100&&window.Top==120&&window.Width==1000&&window.Height==700,"Expand restores independent full placement");
@@ -874,7 +896,7 @@ internal sealed partial class WpfDashboard {
                 foreach(var item in helpTopics)
                 {
                     topics.SelectedItem=item;
-                    if(!Visuals<TextBlock>(surface).Any(text=>text.Text==item.Title+"\n\n"+item.Body))
+                    if(!Visuals<DgxHelpArticle>(surface).Any(text=>text.Text==item.Title+"\n\n"+item.Body && text.Children.Count>1))
                         throw new Exception("Help could not display "+item.Title);
                 }
                 CloseoutCheck(helpTopics.Length==DashboardHelp.Topics.Length,"all Help articles open and display their complete text");

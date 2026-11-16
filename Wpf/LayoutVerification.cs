@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using System.Windows;
@@ -40,9 +40,9 @@ internal sealed partial class WpfDashboard
                 double right=sidebar.ActualWidth-item.TranslatePoint(new Point(item.ActualWidth,0),sidebar).X;
                 if(Math.Abs(left-24)>1||Math.Abs(right-24)>1)throw new Exception("Sidebar visible side insets are not equal.");
             }
-            var brand=Find<Image>("Brand");var settings=Find<StackPanel>("SidebarFooter").Children.OfType<Button>().Single();
-            if(Math.Abs(brand.TranslatePoint(new Point(),sidebar).Y-24)>1||Math.Abs(sidebar.ActualHeight-settings.TranslatePoint(new Point(0,settings.ActualHeight),sidebar).Y-24)>1)
-                throw new Exception("Sidebar top and bottom insets are not equal.");
+            var brand=Find<Image>("Brand");
+            if(Math.Abs(brand.TranslatePoint(new Point(),sidebar).Y-24)>1)
+                throw new Exception("Sidebar brand top inset changed.");
             Panel toolbar=Find<StackPanel>("FullWindowActions");
             var bounds=toolbar.Children.OfType<Button>().Where(b=>Equals(b.Tag,"view-toggle")||Equals(b.Tag,"compact-toggle")).Select(b=>new Rect(b.TranslatePoint(new Point(),toolbar),new Size(b.ActualWidth,b.ActualHeight))).ToArray();
             var full=new Rect(window.Left,window.Top,window.Width,window.Height);
