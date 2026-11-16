@@ -39,13 +39,13 @@ Choose an existing file or create a task file in **Settings > Tasks**. Newly sel
 
 Requirements: Windows 10 22H2 or Windows 11 on x64, with the .NET 10 runtime included in the self-contained download. The installer is unsigned. Release files include SHA-256 checksums.
 
-The optional portable ZIP contains an `App` folder. Extract it to a writable folder and run `LocalDashboard.exe`; keep all supplied files together. Do not run from inside the ZIP.
+Extract the entire portable ZIP to a writable folder and run `LocalDashboard.exe`; keep all supplied files together. Do not run from inside the ZIP.
 
 For an existing configuration, first use **File > Back up configuration** in your previous copy, then choose **Restore from a backup** on the welcome screen of the new copy or **File > Restore configuration** in Dashboard. Review which restored copies Dashboard will use before confirming. An upgrade in the same folder keeps its existing configuration. For an existing 2.2.7 or 3.0.x portable folder, fully exit Dashboard and replace only `LocalDashboard.exe` from the new package; retain `catalog.json`, `.local`, custom icons and linked files. See the [installation notes](Packaging/INSTALL.txt).
 
 A fresh 3.0.3 release starts with empty **Projects**, **Documents**, **Websites** and **All links** categories, ready for your backup or your own links. Generic files in the supplied Examples folder can be selected manually. Task list 1 is visible. Choosing files for Task list 2 and Task list 3 adds their tabs. Checklists starts empty inside the app's data folder. Existing profiles keep their catalog and saved labels.
 
-## Your data
+## Basic use
 
 The installed or portable app keeps its catalog in `catalog.json` and its settings and default checklist in `.local/`, beside the executable. Linked task files stay in their selected locations. Upgrades keep your settings and data. Interactive uninstall lets you keep or remove settings, links and favorites. Silent uninstall keeps settings. Task files and checklist data stay in place.
 
@@ -53,7 +53,11 @@ Configuration backups include readable custom icon files and available copies of
 
 Version 2.2.0 and later share a single running instance per Windows user. A second launch activates the existing instance. Older, unmodified builds cannot enforce this rule when launched afterward.
 
-## Build from source
+## Documentation
+
+See the [user guide](docs/user-guide.md) for the current in-app Help topics.
+
+### Build from source
 
 The current application is WPF. Use Windows PowerShell or PowerShell 7, the .NET 10 SDK, the Windows .NET Framework compiler for the existing icon exporter, and [Inno Setup](https://jrsoftware.org/isinfo.php). The release installer was built with Inno Setup 7.1.1. The SDK restores Windows runtime/reference packs when needed. Node.js is not required.
 
@@ -65,16 +69,16 @@ The script builds the app, creates an explicitly allowlisted payload with an emp
 
 `Wpf/Build Wpf.ps1` is the explicit-source application build. `Build Dashboard.ps1`, the browser assets and Node scripts remain legacy sources; they are not the current release build path.
 
-## Verification and known limits
+### Verification and known limits
 
 The automated suites cover setup, dashboard editing, task refresh, backup/restore with embedded custom icons, website icon selection, shared controls and compact layout. Full accessibility and DPI coverage remain incomplete. Accent changes can occasionally leave the Windows taskbar icon behind. If it gets stuck, choose Reset in Appearance, wait a second, then select your color again.
 
-See [CHANGELOG.md](CHANGELOG.md) for the release changes. Use **Help > Help and user guide** for everyday use, or **Help > Report an issue** to see a notice before opening the [public GitHub issue page](https://github.com/DGX-Development/Local-Dashboard/issues/new). A GitHub account is required to submit an issue. Include the app version, Windows version and reproduction steps; do not post private task contents, personal paths, credentials or backups. Nothing is submitted automatically.
+See [CHANGELOG.md](CHANGELOG.md) for the release changes.
 
-## Rights and attribution
+## Help and feedback
+
+Use **Help > Help and user guide** for everyday use, or **Help > Report an issue** to see a notice before opening the [public GitHub issue page](https://github.com/DGX-Development/Local-Dashboard/issues/new). A GitHub account is required to submit an issue. Include the app version, Windows version and reproduction steps; do not post private task contents, personal paths, credentials or backups. Nothing is submitted automatically.
+
+## License and attribution
 
 The application is source available under the [PolyForm Noncommercial License 1.0.0](LICENSE). The original license text is included unchanged. DGX artwork and third-party trademarks retain their applicable rights. Interface icons come from [Microsoft Fluent System Icons](https://github.com/microsoft/fluentui-system-icons), with the original [LICENSE](Artwork/Icons/fluent/LICENSE), [NOTICE](Artwork/Icons/fluent/NOTICE) and pinned [asset manifest](Artwork/Icons/fluent/manifest.json) retained. The installer is built with Inno Setup.
-
-## Current user guide
-
-See the [user guide](docs/user-guide.md) for the current in-app Help topics.
