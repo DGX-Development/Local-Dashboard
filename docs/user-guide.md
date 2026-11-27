@@ -1,6 +1,6 @@
 # Local Dashboard user guide
 
-Version 3.0.3.
+Version 3.0.4.
 
 ## Getting started
 
@@ -85,7 +85,7 @@ Links are saved in catalog.json beside the app. The editor manages entries witho
 
 All links is a browsing view. Open Edit and select a category before editing its links.
 
-For a link with several destinations, select the one you want to edit or remove. To remove its last destination, remove the link.
+For a link with several destinations, select the one you want to edit or remove. Its destinations have their own scrolling list beside the selected destination fields. Drag a destination by its handle or use Move up and Move down. Save keeps the new order. To remove its last destination, remove the link.
 
 Back up configuration before major changes.
 

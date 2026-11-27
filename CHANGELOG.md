@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.0.4 - 2026-11-26
+
+- Give links with several destinations an independently scrolling list beside the selected destination fields.
+- Reorder destinations by their drag handles or Move up/down actions, retaining selection and saving the new order.
+- Keep the upper links list bounded so destination details have useful editing space.
+
 ## 3.0.3 - 2026-11-15
 
 - Unify setup, Settings, Help, About and confirmation layouts with the shared desktop controls. Setup keeps the same dimensions throughout.

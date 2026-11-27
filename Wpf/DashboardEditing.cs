@@ -86,8 +86,8 @@ internal sealed partial class WpfDashboard
         var empty=WorkText("");
         DockPanel.SetDock(empty,Dock.Top);right.Children.Add(empty);
         var linkEditor=new Grid();
-        linkEditor.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});
-        linkEditor.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star),MaxHeight=360});
+        linkEditor.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star),MinHeight=140,MaxHeight=220});
+        linkEditor.RowDefinitions.Add(new RowDefinition{Height=new GridLength(2,GridUnitType.Star)});
         right.Children.Add(linkEditor);
         var list=new ListBox{ItemTemplate=ReorderTemplate("name"),ItemContainerStyle=EditorRowStyle(),Margin=new Thickness(0,0,0,14)};
         ScrollViewer.SetVerticalScrollBarVisibility(list,ScrollBarVisibility.Auto);
@@ -96,8 +96,16 @@ internal sealed partial class WpfDashboard
         var fields=new StackPanel();
         var fieldScroll=new ScrollViewer{Content=fields,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled};
-        Grid.SetRow(fieldScroll,1);
-        linkEditor.Children.Add(fieldScroll);
+        var details=new Grid();
+        var destinationColumn=new ColumnDefinition{Width=new GridLength(260)};
+        details.ColumnDefinitions.Add(destinationColumn);
+        details.ColumnDefinitions.Add(new ColumnDefinition());
+        Grid.SetRow(details,1);
+        linkEditor.Children.Add(details);
+        Grid.SetColumn(fieldScroll,1);
+        details.Children.Add(fieldScroll);
+        var destinationPanel=new DockPanel{Margin=new Thickness(0,0,18,0)};
+        details.Children.Add(destinationPanel);
         var name=new TextBox{MaxLength=120};
         Field(fields,"Name",name);
         fields.Children.Add(new TextBlock{Text="Opens"});
@@ -106,13 +114,19 @@ internal sealed partial class WpfDashboard
         System.Windows.Automation.AutomationProperties.SetName(kind,"Opens");
         fields.Children.Add(kind);
         var destinationLabel=new TextBlock{Text="Destinations"};
-        fields.Children.Add(destinationLabel);
-        var destinations=new ListBox{DisplayMemberPath="label",MaxHeight=72,Margin=new Thickness(0,5,0,8)};
+        DockPanel.SetDock(destinationLabel,Dock.Top);destinationPanel.Children.Add(destinationLabel);
+        var destinations=new ListBox{ItemTemplate=ReorderTemplate("label"),ItemContainerStyle=EditorRowStyle(),Margin=new Thickness(0,5,0,8)};
         System.Windows.Automation.AutomationProperties.SetName(destinations,"Destination");
-        fields.Children.Add(destinations);
+
         var location=new TextBox();
         var removeDestination=StandardAction(new Button{Content="Remove destination",HorizontalAlignment=HorizontalAlignment.Left});
-        fields.Children.Add(removeDestination);
+        var destinationActions=new WrapPanel();
+        var destinationUp=StandardAction(new Button{Content="Move up"});
+        var destinationDown=StandardAction(new Button{Content="Move down"});
+        destinationActions.Children.Add(destinationUp);
+        destinationActions.Children.Add(destinationDown);
+        destinationActions.Children.Add(removeDestination);
+        DockPanel.SetDock(destinationActions,Dock.Bottom);destinationPanel.Children.Add(destinationActions);destinationPanel.Children.Add(destinations);
         var browseLocation=ActionButton("Browse…",()=>Browse(location,destinations.SelectedItem as LinkTarget));
         var locationLabel=Field(fields,"Address or location",location,browseLocation);
         var linkIcon=new Image{Width=24,Height=24,Margin=new Thickness(0,0,8,0)};
@@ -162,7 +176,10 @@ internal sealed partial class WpfDashboard
             target=destinations.SelectedItem as LinkTarget;
             kind.SelectedIndex=target==null?-1:Array.IndexOf(kinds,target.kind);
             kind.IsEnabled=target!=null;
-            destinationLabel.Visibility=destinations.Visibility=removeDestination.Visibility=selected!=null&&selected.targets.Count>1?Visibility.Visible:Visibility.Collapsed;
+            destinationLabel.Visibility=destinations.Visibility=destinationActions.Visibility=selected!=null&&selected.targets.Count>1?Visibility.Visible:Visibility.Collapsed;
+            destinationColumn.Width=new GridLength(selected!=null&&selected.targets.Count>1?260:0);
+            destinationUp.IsEnabled=target!=null&&destinations.SelectedIndex>0;
+            destinationDown.IsEnabled=target!=null&&selected!=null&&destinations.SelectedIndex<selected.targets.Count-1;
             locationLabel.Text=target==null?"Location":target.kind=="web"?"Website address":target.kind=="folder"?"Folder":"Document";
             System.Windows.Automation.AutomationProperties.SetName(location,locationLabel.Text);
             location.Text=target==null?"":target.kind=="web"?target.url:target.path;
@@ -345,6 +362,22 @@ internal sealed partial class WpfDashboard
             if(!ShowNotice(dialog,"Remove link","Remove \""+selected.name+"\" from Dashboard?\n\nThis takes effect when you save. The linked file, folder or website stays in place.","Remove"))return;
             draft.Remove(selected);selected=null;refreshEntries();
         };
+        EnableEditorReorder(destinations,(from,to)=>{
+            if(selected==null||from==to)return;
+            loading=true;
+            try
+            {
+                var moved=selected.targets[from];
+                selected.targets.RemoveAt(from);
+                selected.targets.Insert(to,moved);
+                destinations.Items.Refresh();
+                destinations.SelectedItem=moved;
+                showTarget();
+            }
+            finally{loading=false;}
+        });
+        destinationUp.Click+=(s,e)=>ComponentCommands.MoveUp.Execute(null,destinations);
+        destinationDown.Click+=(s,e)=>ComponentCommands.MoveDown.Execute(null,destinations);
         EnableEditorReorder(picker,(from,to)=>{
             var moved=sections[from];
             sections.Move(from,to);

@@ -43,6 +43,33 @@ internal sealed partial class WpfDashboard {
             var saved=entries.Single(entry=>entry.id==mixed.id);
             CloseoutCheck(saved.iconPath==WebsiteIcons.CachePath(profile,origin)&&EntryIcon(saved,profile) is System.Windows.Media.Imaging.BitmapSource,
                 "a custom category link keeps its selected website icon after reopening the catalog");
+            presentDialog=dialog=>{
+                var surface=(UIElement)dialog.Content;
+                surface.Measure(new Size(1200,820));surface.Arrange(new Rect(0,0,1200,820));surface.UpdateLayout();
+                var destinations=Visuals<ListBox>(surface).Single(item=>System.Windows.Automation.AutomationProperties.GetName(item)=="Destination");
+                CloseoutCheck(destinations.ActualHeight>=150,"multiple destinations have a readable list area");
+                Capture(surface,Path.Combine(profile,"destination-editor.png"),1200,820);
+                destinations.SelectedIndex=0;
+                System.Windows.Input.ComponentCommands.MoveDown.Execute(null,destinations);
+                CloseoutCheck(((LinkTarget)destinations.Items[0]).id=="site"&&((LinkTarget)destinations.SelectedItem).id=="folder",
+                    "destination reordering preserves the selected destination");
+                ClickIn(surface,"Save");dialog.Close();return true;
+            };
+            EditCatalog();
+            Reload();
+            CloseoutCheck(entries.Single(entry=>entry.id==mixed.id).targets.Select(item=>item.id).SequenceEqual(new[]{"site","folder"}),
+                "destination order persists after saving and reloading");
+            presentDialog=dialog=>{
+                var surface=(UIElement)dialog.Content;
+                surface.Measure(new Size(1200,820));surface.Arrange(new Rect(0,0,1200,820));surface.UpdateLayout();
+                var destinations=Visuals<ListBox>(surface).Single(item=>System.Windows.Automation.AutomationProperties.GetName(item)=="Destination");
+                CloseoutCheck(((LinkTarget)destinations.Items[0]).id=="site","reopened editor retains the destination order");
+                destinations.SelectedIndex=0;
+                System.Windows.Input.ComponentCommands.MoveDown.Execute(null,destinations);
+                ClickIn(surface,"Save");dialog.Close();return true;
+            };
+            EditCatalog();
+            Reload();
             string backup=Path.Combine(profile,"mixed-icon-backup.json");
             DashboardData.ExportWithLists(profile,backup);
             string fresh=Path.Combine(profile,"MixedFresh");
@@ -686,9 +713,9 @@ internal sealed partial class WpfDashboard {
                 CloseoutCheck(list.SelectedIndex==list.Items.Count-1,"adding from the middle still appends the new link");
                 var addedRow=(ListBoxItem)list.ItemContainerGenerator.ContainerFromItem(list.SelectedItem);
                 var addedTop=addedRow.TranslatePoint(new Point(0,0),viewport).Y;
-                CloseoutCheck(list.ActualHeight>250&&viewport.VerticalOffset>0&&addedTop>=0&&
-                    addedTop+addedRow.ActualHeight<=viewport.ActualHeight&&nameField.ActualHeight>0,
-                    "links list shows more rows and scrolls the newly selected link into view");
+                CloseoutCheck(list.ActualHeight>=144&&viewport.VerticalOffset>0&&addedTop>=-0.5&&
+                    addedTop+addedRow.ActualHeight<=viewport.ActualHeight+0.5&&nameField.ActualHeight>0,
+                    "links list keeps readable rows and scrolls the newly selected link into view");
                 Capture(dialog.Content as UIElement,Path.Combine(profile,"closeout-editor.png"),844,581);
                 CloseoutCheck(viewport.ViewportHeight>=96,"small Edit Dashboard keeps room for two link rows");
                 dialog.Close();return false;

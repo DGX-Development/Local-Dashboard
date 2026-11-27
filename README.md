@@ -6,9 +6,9 @@ Local Dashboard is a Windows app for opening your project folders, documents and
 
 ## Current release
 
-[Version 3.0.3](https://github.com/DGX-Development/Local-Dashboard/releases/tag/v3.0.3)
+[Version 3.0.4](https://github.com/DGX-Development/Local-Dashboard/releases/tag/v3.0.4)
 
-[Windows installer](https://github.com/DGX-Development/Local-Dashboard/releases/download/v3.0.3/LocalDashboard-3.0.3-Setup.exe) | [Portable ZIP](https://github.com/DGX-Development/Local-Dashboard/releases/download/v3.0.3/LocalDashboard-3.0.3-Portable.zip) | [SHA-256 checksums](https://github.com/DGX-Development/Local-Dashboard/releases/download/v3.0.3/SHA256SUMS.txt)
+[Windows installer](https://github.com/DGX-Development/Local-Dashboard/releases/download/v3.0.4/LocalDashboard-3.0.4-Setup.exe) | [Portable ZIP](https://github.com/DGX-Development/Local-Dashboard/releases/download/v3.0.4/LocalDashboard-3.0.4-Portable.zip) | [SHA-256 checksums](https://github.com/DGX-Development/Local-Dashboard/releases/download/v3.0.4/SHA256SUMS.txt)
 
 ## Screenshots
 
@@ -29,7 +29,7 @@ Local Dashboard 3.0.3 showing optional sample links in both appearances. Select 
 
 Choose an existing file or create a task file in **Settings > Tasks**. Newly selected files load after **Save**. Task views reload on entry. Use **Refresh** beside Search to reread the current list. Files in locally synchronized folders work like other local files. Use **Help > Check for updates** to find the latest stable release on GitHub.
 
-**Edit Dashboard** opens to the category you are viewing. Add, edit, remove or reorder categories and links in one editor. Drag a row by its grip, or focus the grip and press **Ctrl+Up** or **Ctrl+Down**. Save applies the draft. Use the built-in icon picker or browse for a local image. Show or hide **All links** in **Settings > Appearance**.
+**Edit Dashboard** opens to the category you are viewing. Add, edit, remove or reorder categories and links in one editor. Links with several destinations have their own scrolling list beside the selected destination fields. Drag a destination by its grip or use **Move up** and **Move down**; Save keeps the new order. Drag a row by its grip, or focus the grip and press **Ctrl+Up** or **Ctrl+Down**. Save applies the draft. Use the built-in icon picker or browse for a local image. Show or hide **All links** in **Settings > Appearance**.
 
 ## Getting started
 
@@ -43,7 +43,7 @@ Extract the entire portable ZIP to a writable folder and run `LocalDashboard.exe
 
 For an existing configuration, first use **File > Back up configuration** in your previous copy, then choose **Restore from a backup** on the welcome screen of the new copy or **File > Restore configuration** in Dashboard. Review which restored copies Dashboard will use before confirming. An upgrade in the same folder keeps its existing configuration. For an existing 2.2.7 or 3.0.x portable folder, fully exit Dashboard and replace only `LocalDashboard.exe` from the new package; retain `catalog.json`, `.local`, custom icons and linked files. See the [installation notes](Packaging/INSTALL.txt).
 
-A fresh 3.0.3 release starts with empty **Projects**, **Documents**, **Websites** and **All links** categories, ready for your backup or your own links. Generic files in the supplied Examples folder can be selected manually. Task list 1 is visible. Choosing files for Task list 2 and Task list 3 adds their tabs. Checklists starts empty inside the app's data folder. Existing profiles keep their catalog and saved labels.
+A fresh release starts with empty **Projects**, **Documents**, **Websites** and **All links** categories, ready for your backup or your own links. Generic files in the supplied Examples folder can be selected manually. Task list 1 is visible. Choosing files for Task list 2 and Task list 3 adds their tabs. Checklists starts empty inside the app's data folder. Existing profiles keep their catalog and saved labels.
 
 ## Basic use
 

@@ -186,7 +186,7 @@ internal sealed class CatalogDraft
                 row["displayName"]=entry.name.Trim();
             changed=true;
         }
-        if(retained.Count!=targets.Count)
+        if(retained.Count!=targets.Count||!entry.targets.Select(item=>item.id).SequenceEqual(previous.targets.Select(item=>item.id)))
         {
             row["targets"]=retained;
             changed=true;
